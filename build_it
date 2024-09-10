@@ -1,0 +1,1 @@
+g++ -Wall -g1 -O1 tof_pointcloud.cpp -o arducam_tof -lm -lroscpp -lrostime -lrosconsole -lroscpp_serialization -lArducamDepthCamera
