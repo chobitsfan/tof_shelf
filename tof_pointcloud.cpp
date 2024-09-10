@@ -71,7 +71,12 @@ int main(int argc, char *argv[])
     ros::Publisher pub = nh.advertise<sensor_msgs::PointCloud2>("point_cloud", 1);
     image_transport::ImageTransport it(nh);
     image_transport::Publisher img_pub = it.advertise("depth_image", 1);
+    image_transport::Publisher img_pub2 = it.advertise("edge_image", 1);
 
+    cv::Mat grad_x(180, 240, CV_32F);
+    cv::Mat grad_y(180, 240, CV_32F);
+    cv::Mat abs_grad_x(180, 240, CV_8U);
+    cv::Mat abs_grad_y(180, 240, CV_8U);
     cv::Mat result_frame(180, 240, CV_8U);
 
     while (gogogo) {
@@ -110,15 +115,22 @@ int main(int argc, char *argv[])
             cv::Mat depth_frame(180, 240, CV_32F, depth_ptr);
             cv::Mat confidence_frame(180, 240, CV_32F, confidence_ptr);
             depth_frame.setTo(0, confidence_frame < 80);
-            //double max;
-            //cv::minMaxLoc(depth_frame, NULL, &max);
-            //depth_frame.convertTo(result_frame, CV_8U, 255.0 / max);
+            double max;
+            cv::minMaxLoc(depth_frame, NULL, &max);
+            depth_frame.convertTo(result_frame, CV_8U, 255.0 / max);
+            //cv::convertScaleAbs(depth_frame, result_frame);
+            sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", result_frame).toImageMsg();
+            img_pub2.publish(img_msg);
             //cv::flip(result_frame, result_frame, -1);
-            cv::Sobel(depth_frame, depth_frame, -1, 0, 1);
-            cv::convertScaleAbs(depth_frame, result_frame);
+            GaussianBlur(depth_frame, depth_frame, cv::Size(3, 3), 0);
+            cv::Sobel(depth_frame, grad_x, -1, 0, 1);
+            //cv::Sobel(depth_frame, grad_y, -1, 0, 1);
+            cv::convertScaleAbs(grad_x, abs_grad_x);
+            //cv::convertScaleAbs(grad_y, abs_grad_y);
+            //addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, result_frame);
             //cv::applyColorMap(result_frame, result_frame, cv::COLORMAP_RAINBOW);
             //result_frame.setTo(cv::Scalar(0, 0, 0), confidence_frame < 80);
-            sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", result_frame).toImageMsg();
+            img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", abs_grad_x).toImageMsg();
             img_pub.publish(img_msg);
         }
         tof.releaseFrame(frame);
