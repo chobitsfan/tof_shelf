@@ -72,6 +72,8 @@ int main(int argc, char *argv[])
     image_transport::ImageTransport it(nh);
     image_transport::Publisher img_pub = it.advertise("depth_image", 1);
 
+    cv::Mat result_frame(180, 240, CV_8U);
+
     while (gogogo) {
         frame = tof.requestFrame(200);
         if (frame != nullptr) {
@@ -107,11 +109,13 @@ int main(int argc, char *argv[])
 
             cv::Mat depth_frame(180, 240, CV_32F, depth_ptr);
             cv::Mat confidence_frame(180, 240, CV_32F, confidence_ptr);
-            cv::Mat result_frame(180, 240, CV_8U);
             depth_frame.setTo(0, confidence_frame < 80);
-            double max;
-            cv::minMaxLoc(depth_frame, NULL, &max);
-            depth_frame.convertTo(result_frame, CV_8U, 255.0 / max);
+            //double max;
+            //cv::minMaxLoc(depth_frame, NULL, &max);
+            //depth_frame.convertTo(result_frame, CV_8U, 255.0 / max);
+            //cv::flip(result_frame, result_frame, -1);
+            cv::Sobel(depth_frame, depth_frame, -1, 0, 1);
+            cv::convertScaleAbs(depth_frame, result_frame);
             //cv::applyColorMap(result_frame, result_frame, cv::COLORMAP_RAINBOW);
             //result_frame.setTo(cv::Scalar(0, 0, 0), confidence_frame < 80);
             sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", result_frame).toImageMsg();
