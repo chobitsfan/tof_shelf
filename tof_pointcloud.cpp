@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
     float fy = 180 / (2 * tan(0.5 * M_PI * 50.4 / 180));
     Arducam::ArducamFrameBuffer* frame;
     float* depth_ptr;
-    float* amplitude_ptr;
+    float* confidence_ptr;
     Arducam::ArducamTOFCamera tof;
 
     if (tof.open(Arducam::Connection::CSI))
@@ -73,20 +73,21 @@ int main(int argc, char *argv[])
         if (frame != nullptr) {
             point_cloud.header.stamp = ros::Time::now();
             depth_ptr = (float*)frame->getData(Arducam::FrameType::DEPTH_FRAME);
-            amplitude_ptr = (float*)frame->getData(Arducam::FrameType::AMPLITUDE_FRAME);
-            unsigned long int pos = 0;
-            //int valid_points = 0;
+            confidence_ptr = (float*)frame->getData(Arducam::FrameType::CONFIDENCE_FRAME);
+            //unsigned int pos = 0;
+            //float max_conf = 0;
             sensor_msgs::PointCloud2Iterator<float> iter_x(point_cloud, "x");
             sensor_msgs::PointCloud2Iterator<float> iter_y(point_cloud, "y");
             sensor_msgs::PointCloud2Iterator<float> iter_z(point_cloud, "z");
             for (int row_idx = 0; row_idx < 180; row_idx++) {
-                for (int col_idx = 0; col_idx < 240; col_idx++, pos++) {
-                    if (amplitude_ptr[pos] > 60) {
+                for (int col_idx = 1; col_idx < 239; col_idx++) {
+                    unsigned int pos = row_idx * 240 + col_idx;
+                    //if (confidence_ptr[pos] > max_conf) max_conf = confidence_ptr[pos];
+                    if (confidence_ptr[pos] > 80 && confidence_ptr[pos-1] > 80 && confidence_ptr[pos+1] > 80) {
                         float zz = depth_ptr[pos] * 0.001f;
                         *iter_x = zz;
                         *iter_y = -(((120 - col_idx)) / fx) * zz;
                         *iter_z = -((90 - row_idx) / fy) * zz;
-                        //++valid_points;
                     } else {
                         *iter_x = std::numeric_limits<float>::quiet_NaN();
                         *iter_y = std::numeric_limits<float>::quiet_NaN();
@@ -98,7 +99,7 @@ int main(int argc, char *argv[])
                 }
             }
             pub.publish(point_cloud);
-            //printf("%d\n", valid_points);
+            //printf("max confidence %f\n", max_conf);
         }
         tof.releaseFrame(frame);
     }
