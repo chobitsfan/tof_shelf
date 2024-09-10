@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
         exit(-1);
     }
     tof.setControl(Arducam::CameraCtrl::RANGE, 2);
-    tof.setControl(Arducam::CameraCtrl::FRAME_RATE, 10);
+    tof.setControl(Arducam::CameraCtrl::FRAME_RATE, 5);
 
     ros::init(argc, argv, "tof", ros::init_options::NoSigintHandler);
     ros::NodeHandle nh("~");
@@ -73,11 +73,12 @@ int main(int argc, char *argv[])
     image_transport::Publisher img_pub = it.advertise("depth_image", 1);
     image_transport::Publisher img_pub2 = it.advertise("edge_image", 1);
 
-    cv::Mat grad_x(180, 240, CV_32F);
+    cv::Mat grad_x(180, 240, CV_8U);
     cv::Mat grad_y(180, 240, CV_32F);
     cv::Mat abs_grad_x(180, 240, CV_8U);
     cv::Mat abs_grad_y(180, 240, CV_8U);
     cv::Mat result_frame(180, 240, CV_8U);
+    cv::Mat lines_frame(180, 240, CV_8U);
 
     while (gogogo) {
         frame = tof.requestFrame(200);
@@ -114,24 +115,39 @@ int main(int argc, char *argv[])
 
             cv::Mat depth_frame(180, 240, CV_32F, depth_ptr);
             cv::Mat confidence_frame(180, 240, CV_32F, confidence_ptr);
-            depth_frame.setTo(2000, confidence_frame < 80);
+            depth_frame.setTo(2000, confidence_frame < 60);
             cv::flip(depth_frame, depth_frame, -1);
-            double max;
-            cv::minMaxLoc(depth_frame, NULL, &max);
-            depth_frame.convertTo(result_frame, CV_8U, 255.0 / max);
+            //double max;
+            //cv::minMaxLoc(depth_frame, NULL, &max);
+            //printf("max dist %f\n", max);
+            depth_frame.convertTo(result_frame, CV_8U, 255.0 / 2000.0);
             //cv::convertScaleAbs(depth_frame, result_frame);
             sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", result_frame).toImageMsg();
             img_pub2.publish(img_msg);
             //cv::flip(result_frame, result_frame, -1);
-            //GaussianBlur(depth_frame, depth_frame, cv::Size(3, 3), 0);
-            cv::Sobel(result_frame, grad_x, CV_32F, 0, 1, -1);
+            //GaussianBlur(result_frame, result_frame, cv::Size(3, 3), 0);
+            cv::Sobel(result_frame, grad_x, CV_8U, 0, 1, -1);
+            cv::threshold(grad_x, grad_x, 250, 255, cv::THRESH_BINARY);
             //cv::Sobel(depth_frame, grad_y, -1, 0, 1);
-            cv::convertScaleAbs(grad_x, abs_grad_x);
+            //cv::convertScaleAbs(grad_x, abs_grad_x);
             //cv::convertScaleAbs(grad_y, abs_grad_y);
             //addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, result_frame);
             //cv::applyColorMap(result_frame, result_frame, cv::COLORMAP_RAINBOW);
             //result_frame.setTo(cv::Scalar(0, 0, 0), confidence_frame < 80);
-            img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", abs_grad_x).toImageMsg();
+
+            lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8U);
+            // Probabilistic Line Transform
+            std::vector<cv::Vec4i> linesP; // will hold the results of the detection
+            cv::HoughLinesP(grad_x, linesP, 1, CV_PI/180, 50, 50, 100); // runs the actual detection
+            //printf("%d lines detected\n", linesP.size());
+            // Draw the lines
+            for(size_t i = 0; i < linesP.size(); i++ )
+            {
+                cv::Vec4i l = linesP[i];
+                line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), 255, 1, cv::LINE_AA);
+            }
+
+            img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", lines_frame).toImageMsg();
             img_pub.publish(img_msg);
         }
         tof.releaseFrame(frame);
