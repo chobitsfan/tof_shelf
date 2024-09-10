@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
         printf("start fail\n");
         exit(-1);
     }
-    tof.setControl(Arducam::CameraCtrl::RANGE, 4000);
+    tof.setControl(Arducam::CameraCtrl::RANGE, 2);
     tof.setControl(Arducam::CameraCtrl::FRAME_RATE, 10);
 
     ros::init(argc, argv, "tof", ros::init_options::NoSigintHandler);
@@ -114,7 +114,8 @@ int main(int argc, char *argv[])
 
             cv::Mat depth_frame(180, 240, CV_32F, depth_ptr);
             cv::Mat confidence_frame(180, 240, CV_32F, confidence_ptr);
-            depth_frame.setTo(0, confidence_frame < 80);
+            depth_frame.setTo(2000, confidence_frame < 80);
+            cv::flip(depth_frame, depth_frame, -1);
             double max;
             cv::minMaxLoc(depth_frame, NULL, &max);
             depth_frame.convertTo(result_frame, CV_8U, 255.0 / max);
@@ -122,8 +123,8 @@ int main(int argc, char *argv[])
             sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", result_frame).toImageMsg();
             img_pub2.publish(img_msg);
             //cv::flip(result_frame, result_frame, -1);
-            GaussianBlur(depth_frame, depth_frame, cv::Size(3, 3), 0);
-            cv::Sobel(depth_frame, grad_x, -1, 0, 1);
+            //GaussianBlur(depth_frame, depth_frame, cv::Size(3, 3), 0);
+            cv::Sobel(result_frame, grad_x, CV_32F, 0, 1, -1);
             //cv::Sobel(depth_frame, grad_y, -1, 0, 1);
             cv::convertScaleAbs(grad_x, abs_grad_x);
             //cv::convertScaleAbs(grad_y, abs_grad_y);
