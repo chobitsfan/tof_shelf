@@ -4,6 +4,8 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <geometry_msgs/PointStamped.h>
+#include <image_transport/image_transport.h>
+#include <cv_bridge/cv_bridge.h>
 #include <ArducamTOFCamera.hpp>
 
 bool gogogo = true;
@@ -61,12 +63,14 @@ int main(int argc, char *argv[])
         printf("start fail\n");
         exit(-1);
     }
-    tof.setControl(Arducam::CameraCtrl::RANGE, 4);
+    tof.setControl(Arducam::CameraCtrl::RANGE, 4000);
     tof.setControl(Arducam::CameraCtrl::FRAME_RATE, 10);
 
     ros::init(argc, argv, "tof", ros::init_options::NoSigintHandler);
     ros::NodeHandle nh("~");
-    ros::Publisher pub = nh.advertise<sensor_msgs::PointCloud2>("point_cloud", 2);
+    ros::Publisher pub = nh.advertise<sensor_msgs::PointCloud2>("point_cloud", 1);
+    image_transport::ImageTransport it(nh);
+    image_transport::Publisher img_pub = it.advertise("depth_image", 1);
 
     while (gogogo) {
         frame = tof.requestFrame(200);
@@ -100,6 +104,18 @@ int main(int argc, char *argv[])
             }
             pub.publish(point_cloud);
             //printf("max confidence %f\n", max_conf);
+
+            cv::Mat depth_frame(180, 240, CV_32F, depth_ptr);
+            cv::Mat confidence_frame(180, 240, CV_32F, confidence_ptr);
+            cv::Mat result_frame(180, 240, CV_8U);
+            depth_frame.setTo(0, confidence_frame < 80);
+            double max;
+            cv::minMaxLoc(depth_frame, NULL, &max);
+            depth_frame.convertTo(result_frame, CV_8U, 255.0 / max);
+            //cv::applyColorMap(result_frame, result_frame, cv::COLORMAP_RAINBOW);
+            //result_frame.setTo(cv::Scalar(0, 0, 0), confidence_frame < 80);
+            sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", result_frame).toImageMsg();
+            img_pub.publish(img_msg);
         }
         tof.releaseFrame(frame);
     }
