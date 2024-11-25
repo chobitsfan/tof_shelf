@@ -80,6 +80,8 @@ int main(int argc, char *argv[])
     cv::Mat result_frame(180, 240, CV_8U);
     cv::Mat lines_frame(180, 240, CV_8U);
 
+    cv::Ptr<cv::LineSegmentDetector> lsd = cv::createLineSegmentDetector();
+
     while (gogogo) {
         frame = tof.requestFrame(200);
         if (frame != nullptr) {
@@ -127,7 +129,7 @@ int main(int argc, char *argv[])
             //cv::flip(result_frame, result_frame, -1);
             //GaussianBlur(result_frame, result_frame, cv::Size(3, 3), 0);
             cv::Sobel(result_frame, grad_x, CV_8U, 0, 1, -1);
-            cv::threshold(grad_x, grad_x, 250, 255, cv::THRESH_BINARY);
+            //cv::threshold(grad_x, grad_x, 250, 255, cv::THRESH_BINARY);
             //cv::Sobel(depth_frame, grad_y, -1, 0, 1);
             //cv::convertScaleAbs(grad_x, abs_grad_x);
             //cv::convertScaleAbs(grad_y, abs_grad_y);
@@ -136,6 +138,10 @@ int main(int argc, char *argv[])
             //result_frame.setTo(cv::Scalar(0, 0, 0), confidence_frame < 80);
 
             lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8U);
+            std::vector<cv::Vec4f> lines_std;
+            lsd->detect(grad_x, lines_std);
+            lsd->drawSegments(lines_frame, lines_std);
+#if 0
             // Probabilistic Line Transform
             std::vector<cv::Vec4i> linesP; // will hold the results of the detection
             cv::HoughLinesP(grad_x, linesP, 1, CV_PI/180, 50, 50, 100); // runs the actual detection
@@ -146,6 +152,7 @@ int main(int argc, char *argv[])
                 cv::Vec4i l = linesP[i];
                 line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), 255, 1, cv::LINE_AA);
             }
+#endif
 
             img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", lines_frame).toImageMsg();
             img_pub.publish(img_msg);
