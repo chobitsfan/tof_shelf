@@ -10,6 +10,7 @@
 
 //see https://stackoverflow.com/questions/44081873/what-are-the-units-and-limits-of-gradient-magnitude
 #define GRAD_THRESH 300
+//#define HORI_STRUCT_W_CM 6
 
 bool gogogo = true;
 
@@ -47,10 +48,9 @@ int main(int argc, char *argv[])
     point_cloud.is_dense = false;
     point_cloud.data.resize(12*240*180);
     point_cloud.row_step = 12*240;
-
-    float fx = 240 / (2 * tan(0.5 * M_PI * 64.3 / 180));
-    float fy = 180 / (2 * tan(0.5 * M_PI * 50.4 / 180));
 #endif
+    //float fx = 240 / (2 * tan(0.5 * M_PI * 64.3 / 180));
+    //float fy = 180 / (2 * tan(0.5 * M_PI * 50.4 / 180));
     Arducam::ArducamFrameBuffer* frame;
     float* depth_ptr;
     float* confidence_ptr;
@@ -126,39 +126,30 @@ int main(int argc, char *argv[])
             depth_frame.setTo(2000, confidence_frame < 60);
             cv::threshold(depth_frame, depth_frame, 2000, 0, cv::THRESH_TRUNC);
             //cv::flip(depth_frame, depth_frame, -1);
-            //double max;
-            //cv::minMaxLoc(depth_frame, NULL, &max);
-            //printf("max dist %f\n", max);
             depth_frame.convertTo(gray_frame, CV_8U, 0.1);
+            //double min;
+            //cv::minMaxLoc(gray_frame, &min, NULL);
+            //printf("min dist %f\n", min);
             //cv::convertScaleAbs(depth_frame, result_frame);
             sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", gray_frame).toImageMsg();
             img_pub.publish(img_msg);
             //cv::flip(result_frame, result_frame, -1);
             //GaussianBlur(result_frame, result_frame, cv::Size(3, 3), 0);
+
+            //detect vertical structures
             cv::Sobel(gray_frame, grad_x, CV_16S, 1, 0, -1);
-            /*double max;
-            cv::minMaxLoc(grad_x, NULL, &max);
-            printf("%f\n", max);*/
             cv::threshold(grad_x, grad_x_thresh, GRAD_THRESH, 255, cv::THRESH_BINARY);
             grad_x_thresh.convertTo(grad_8u, CV_8U);
-            //cv::Sobel(depth_frame, grad_y, -1, 0, 1);
-            //cv::convertScaleAbs(grad_x, abs_grad_x);
-            //cv::convertScaleAbs(grad_y, abs_grad_y);
-            //addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, result_frame);
-            //cv::applyColorMap(result_frame, result_frame, cv::COLORMAP_RAINBOW);
-            //result_frame.setTo(cv::Scalar(0, 0, 0), confidence_frame < 80);
-            lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8UC3);
-
             // Probabilistic Line Transform
             std::vector<cv::Vec4i> lines_x_p; // will hold the results of the detection
-            cv::HoughLinesP(grad_8u, lines_x_p, 1, CV_PI/180, 80, 70, 5); // runs the actual detection
+            cv::HoughLinesP(grad_8u, lines_x_p, 1, CV_PI/180, 80, 50, 5); // runs the actual detection
             //printf("%d lines detected\n", linesP.size());
             // Draw the lines
+            lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8UC3);
             for (const cv::Vec4i& l:lines_x_p)
             {
                 cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(0,0,255), 1, cv::LINE_AA);
             }
-
             cv::threshold(grad_x, grad_x_thresh, -GRAD_THRESH, 255, cv::THRESH_BINARY_INV);
             grad_x_thresh.convertTo(grad_8u, CV_8U);
             std::vector<cv::Vec4i> lines_x_n; // will hold the results of the detection
@@ -168,6 +159,18 @@ int main(int argc, char *argv[])
             {
                 cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(0,255,0), 1, cv::LINE_AA);
             }
+
+            //detect horizontal structures
+            cv::Sobel(gray_frame, grad_x, CV_16S, 0, 1, -1);
+            cv::threshold(grad_x, grad_x_thresh, GRAD_THRESH, 255, cv::THRESH_BINARY);
+            grad_x_thresh.convertTo(grad_8u, CV_8U);
+            std::vector<cv::Vec4i> lines_y;
+            cv::HoughLinesP(grad_8u, lines_y, 1, CV_PI/180, 80, 80, 5); // runs the actual detection
+            // Draw the lines
+            for (const cv::Vec4i& l:lines_y)
+            {
+                cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,0,0), 1, cv::LINE_AA);
+            }
             img_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", lines_frame).toImageMsg();
             img_pub2.publish(img_msg);
 
@@ -175,7 +178,7 @@ int main(int argc, char *argv[])
             std::vector<cv::Vec4i> vert_structs;
             for (const cv::Vec4i& pl:lines_x_p) {
                 for (const cv::Vec4i& nl:lines_x_n) {
-                    if (pl[0]-nl[0]<20) {
+                    if (pl[0]-nl[0]<20 && pl[0]-nl[0]>2) {
                         vert_structs.emplace_back(nl[0], nl[1], nl[2], nl[3]);
                         vert_structs.emplace_back(pl[0], pl[1], pl[2], pl[3]);
                         break;
@@ -185,6 +188,10 @@ int main(int argc, char *argv[])
             for (const cv::Vec4i& v:vert_structs)
             {
                 cv::line(lines_frame, cv::Point(v[0], v[1]), cv::Point(v[2], v[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
+            }
+            for (const cv::Vec4i& l:lines_y)
+            {
+                cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
             }
             img_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", lines_frame).toImageMsg();
             img_pub3.publish(img_msg);
