@@ -12,6 +12,7 @@
 //see https://stackoverflow.com/questions/44081873/what-are-the-units-and-limits-of-gradient-magnitude
 #define GRAD_THRESH 300
 //#define HORI_STRUCT_W_CM 6
+#define PUB_PP
 
 bool gogogo = true;
 
@@ -107,8 +108,8 @@ int main(int argc, char *argv[])
                     if (confidence_ptr[pos] > 80 && confidence_ptr[pos-1] > 80 && confidence_ptr[pos+1] > 80) {
                         float zz = depth_ptr[pos] * 0.001f;
                         *iter_x = zz;
-                        *iter_y = -(((120 - col_idx)) / fx) * zz;
-                        *iter_z = -((90 - row_idx) / fy) * zz;
+                        *iter_y = (120 - col_idx) / fx * zz;
+                        *iter_z = (90 - row_idx) / fy * zz;
                     } else {
                         *iter_x = std::numeric_limits<float>::quiet_NaN();
                         *iter_y = std::numeric_limits<float>::quiet_NaN();
@@ -206,6 +207,7 @@ int main(int argc, char *argv[])
             line_list.color.r = 1.0;
             line_list.color.a = 1.0;
             //printf("vert structures:");
+#if 0
             for (const cv::Vec4i& v:vert_structs)
             {
                 //cv::line(lines_frame, cv::Point(v[0], v[1]), cv::Point(v[2], v[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
@@ -222,21 +224,41 @@ int main(int argc, char *argv[])
                 p.z = (90 - v[3]) / fy * d;
                 line_list.points.push_back(p);
             }
+#endif
             //printf("hori structures:");
+            //float dd[5];
             for (const cv::Vec4i& l:lines_y)
             {
                 //cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
                 //printf("[%d,%d:%d->%d,%d:%d] ", l[0], l[1], depth_8u.at<uchar>(l[1]-2,l[0]), l[2], l[3], depth_8u.at<uchar>(l[3]-2,l[2]));
-                float d = depth_frame.at<float>(l[1]-1,l[0]) * 0.001;
+                int y1 = l[1]-3;
+                int y2 = l[3]-3;
+                cv::Mat sub_d = depth_frame(cv::Rect(l[0]-1, y1-1, 3, 3) & cv::Rect(0, 0, 240, 180)).clone();
+                float* pp = sub_d.ptr<float>();
+                std::sort(pp, pp+9);
+                //for (int i=0;i<5;i++) printf("%f ", dd[i]);
+                //printf("\n");
+                //float d = depth_frame.at<float>(y1,l[0]) * 0.001;
+                float d = pp[4]*0.001f;
                 geometry_msgs::Point p;
                 p.x = d;
                 p.y = (120 - l[0]) / fx * d;
-                p.z = (90 - l[1]) / fy * d;
+                p.z = (90 - y1) / fy * d;
                 line_list.points.push_back(p);
-                d = depth_frame.at<float>(l[3]-1,l[2]) * 0.001;
+                
+                sub_d = depth_frame(cv::Rect(l[2]-1, y2-1, 3, 3) & cv::Rect(0, 0, 240, 180)).clone();
+                pp = sub_d.ptr<float>();
+                std::sort(pp, pp+9);
+                //pp = depth_frame.ptr<float>(y2,l[2]-5);
+                //memcpy(dd, pp, sizeof(float)*5);
+                //std::sort(dd, dd+5);
+                //for (int i=0;i<5;i++) printf("%f ", dd[i]);
+                //printf("\n");
+                //d = depth_frame.at<float>(y2,l[2]) * 0.001;
+                d = pp[4]*0.001f;
                 p.x = d;
                 p.y = (120 - l[2]) / fx * d;
-                p.z = (90 - l[3]) / fy * d;
+                p.z = (90 - y2) / fy * d;
                 line_list.points.push_back(p);
             }
             //printf("\n");
