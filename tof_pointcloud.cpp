@@ -3,6 +3,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
+#include <visualization_msgs/Marker.h>
 #include <geometry_msgs/PointStamped.h>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
@@ -49,8 +50,8 @@ int main(int argc, char *argv[])
     point_cloud.data.resize(12*240*180);
     point_cloud.row_step = 12*240;
 #endif
-    //float fx = 240 / (2 * tan(0.5 * M_PI * 64.3 / 180));
-    //float fy = 180 / (2 * tan(0.5 * M_PI * 50.4 / 180));
+    float fx = 240 / (2 * tan(0.5 * M_PI * 64.3 / 180));
+    float fy = 180 / (2 * tan(0.5 * M_PI * 50.4 / 180));
     Arducam::ArducamFrameBuffer* frame;
     float* depth_ptr;
     float* confidence_ptr;
@@ -76,7 +77,8 @@ int main(int argc, char *argv[])
     image_transport::ImageTransport it(nh);
     image_transport::Publisher img_pub = it.advertise("depth_image", 1);
     image_transport::Publisher img_pub2 = it.advertise("edge_image", 1);
-    image_transport::Publisher img_pub3 = it.advertise("struct_image", 1);
+    //image_transport::Publisher img_pub3 = it.advertise("struct_image", 1);
+    ros::Publisher lines_pub = nh.advertise<visualization_msgs::Marker>("struct_lines", 1);
 
     cv::Mat grad_x(180, 240, CV_16S);
     cv::Mat grad_x_thresh(180, 240, CV_16S);
@@ -175,7 +177,6 @@ int main(int argc, char *argv[])
             img_pub2.publish(img_msg);
 
             //only keep vertical lines which postive & negative edges are close enough
-            lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8UC3);
             std::vector<cv::Vec4i> vert_structs;
             for (const cv::Vec4i& pl:lines_x_p) {
                 /*bool dup_lines = false;
@@ -194,21 +195,55 @@ int main(int argc, char *argv[])
                     }
                 }
             }
-            printf("vert structures:");
+            visualization_msgs::Marker line_list;
+            line_list.header.frame_id = "body";
+            line_list.header.stamp = ros::Time::now();
+            line_list.action = visualization_msgs::Marker::ADD;
+            line_list.type = visualization_msgs::Marker::LINE_LIST;
+            line_list.pose.orientation.w = 1;
+            line_list.ns = "structures";
+            line_list.scale.x = 0.01;
+            line_list.color.r = 1.0;
+            line_list.color.a = 1.0;
+            //printf("vert structures:");
             for (const cv::Vec4i& v:vert_structs)
             {
-                cv::line(lines_frame, cv::Point(v[0], v[1]), cv::Point(v[2], v[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
-                printf("[%d,%d:%d->%d,%d:%d] ", v[0], v[1], depth_8u.at<uchar>(v[1],v[0]), v[2], v[3], depth_8u.at<uchar>(v[3],v[2]));
+                //cv::line(lines_frame, cv::Point(v[0], v[1]), cv::Point(v[2], v[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
+                //printf("[%d,%d:%d->%d,%d:%d] ", v[0], v[1], depth_8u.at<uchar>(v[1],v[0]), v[2], v[3], depth_8u.at<uchar>(v[3],v[2]));
+                float d = depth_frame.at<float>(v[1],v[0]) * 0.001;
+                geometry_msgs::Point p;
+                p.x = d;
+                p.y = (120 - v[0]) / fx * d;
+                p.z = (90 - v[1]) / fy * d;
+                line_list.points.push_back(p);
+                d = depth_frame.at<float>(v[3],v[2]) * 0.001;
+                p.x = d;
+                p.y = (120 - v[2]) / fx * d;
+                p.z = (90 - v[3]) / fy * d;
+                line_list.points.push_back(p);
             }
-            printf("hori structures:");
+            //printf("hori structures:");
             for (const cv::Vec4i& l:lines_y)
             {
-                cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
-                printf("[%d,%d:%d->%d,%d:%d] ", l[0], l[1], depth_8u.at<uchar>(l[1]-2,l[0]), l[2], l[3], depth_8u.at<uchar>(l[3]-2,l[2]));
+                //cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
+                //printf("[%d,%d:%d->%d,%d:%d] ", l[0], l[1], depth_8u.at<uchar>(l[1]-2,l[0]), l[2], l[3], depth_8u.at<uchar>(l[3]-2,l[2]));
+                float d = depth_frame.at<float>(l[1]-1,l[0]) * 0.001;
+                geometry_msgs::Point p;
+                p.x = d;
+                p.y = (120 - l[0]) / fx * d;
+                p.z = (90 - l[1]) / fy * d;
+                line_list.points.push_back(p);
+                d = depth_frame.at<float>(l[3]-1,l[2]) * 0.001;
+                p.x = d;
+                p.y = (120 - l[2]) / fx * d;
+                p.z = (90 - l[3]) / fy * d;
+                line_list.points.push_back(p);
             }
-            printf("\n");
-            img_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", lines_frame).toImageMsg();
-            img_pub3.publish(img_msg);
+            //printf("\n");
+            //lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8UC3);
+            //img_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", lines_frame).toImageMsg();
+            //img_pub3.publish(img_msg);
+            lines_pub.publish(line_list);
         }
         tof.releaseFrame(frame);
     }
