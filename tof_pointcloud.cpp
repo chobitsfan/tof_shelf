@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
     sigemptyset(&abort_act.sa_mask);
     abort_act.sa_flags = 0;
     sigaction(SIGINT, &abort_act, NULL);
-
+#if 0
     sensor_msgs::PointCloud2 point_cloud;
     point_cloud.header.frame_id = "body";
     point_cloud.width = 240;
@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
 
     float fx = 240 / (2 * tan(0.5 * M_PI * 64.3 / 180));
     float fy = 180 / (2 * tan(0.5 * M_PI * 50.4 / 180));
+#endif
     Arducam::ArducamFrameBuffer* frame;
     float* depth_ptr;
     float* confidence_ptr;
@@ -74,9 +75,9 @@ int main(int argc, char *argv[])
     image_transport::Publisher img_pub2 = it.advertise("edge_image", 1);
 
     cv::Mat grad_x(180, 240, CV_8U);
-    cv::Mat grad_y(180, 240, CV_32F);
-    cv::Mat abs_grad_x(180, 240, CV_8U);
-    cv::Mat abs_grad_y(180, 240, CV_8U);
+    //cv::Mat grad_y(180, 240, CV_32F);
+    //cv::Mat abs_grad_x(180, 240, CV_8U);
+    //cv::Mat abs_grad_y(180, 240, CV_8U);
     cv::Mat result_frame(180, 240, CV_8U);
     cv::Mat lines_frame(180, 240, CV_8U);
 
@@ -85,9 +86,10 @@ int main(int argc, char *argv[])
     while (gogogo) {
         frame = tof.requestFrame(200);
         if (frame != nullptr) {
-            point_cloud.header.stamp = ros::Time::now();
             depth_ptr = (float*)frame->getData(Arducam::FrameType::DEPTH_FRAME);
             confidence_ptr = (float*)frame->getData(Arducam::FrameType::CONFIDENCE_FRAME);
+#if 0
+            point_cloud.header.stamp = ros::Time::now();
             //unsigned int pos = 0;
             //float max_conf = 0;
             sensor_msgs::PointCloud2Iterator<float> iter_x(point_cloud, "x");
@@ -114,22 +116,23 @@ int main(int argc, char *argv[])
             }
             pub.publish(point_cloud);
             //printf("max confidence %f\n", max_conf);
+#endif
 
             cv::Mat depth_frame(180, 240, CV_32F, depth_ptr);
             cv::Mat confidence_frame(180, 240, CV_32F, confidence_ptr);
             depth_frame.setTo(2000, confidence_frame < 60);
-            cv::flip(depth_frame, depth_frame, -1);
+            //cv::flip(depth_frame, depth_frame, -1);
             //double max;
             //cv::minMaxLoc(depth_frame, NULL, &max);
             //printf("max dist %f\n", max);
             depth_frame.convertTo(result_frame, CV_8U, 255.0 / 2000.0);
             //cv::convertScaleAbs(depth_frame, result_frame);
             sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", result_frame).toImageMsg();
-            img_pub2.publish(img_msg);
+            img_pub.publish(img_msg);
             //cv::flip(result_frame, result_frame, -1);
             //GaussianBlur(result_frame, result_frame, cv::Size(3, 3), 0);
-            cv::Sobel(result_frame, grad_x, CV_8U, 0, 1, -1);
-            //cv::threshold(grad_x, grad_x, 250, 255, cv::THRESH_BINARY);
+            cv::Sobel(result_frame, grad_x, CV_8U, 1, 0, -1);
+            cv::threshold(grad_x, grad_x, 250, 255, cv::THRESH_BINARY);
             //cv::Sobel(depth_frame, grad_y, -1, 0, 1);
             //cv::convertScaleAbs(grad_x, abs_grad_x);
             //cv::convertScaleAbs(grad_y, abs_grad_y);
@@ -138,10 +141,16 @@ int main(int argc, char *argv[])
             //result_frame.setTo(cv::Scalar(0, 0, 0), confidence_frame < 80);
 
             lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8U);
+#if 0
             std::vector<cv::Vec4f> lines_std;
             lsd->detect(grad_x, lines_std);
-            lsd->drawSegments(lines_frame, lines_std);
-#if 0
+            //lsd->drawSegments(lines_frame, lines_std);
+            for(size_t i = 0; i < lines_std.size(); i++ )
+            {
+                cv::Vec4f l = lines_std[i];
+                line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), 255, 1, cv::LINE_AA);
+            }
+#else
             // Probabilistic Line Transform
             std::vector<cv::Vec4i> linesP; // will hold the results of the detection
             cv::HoughLinesP(grad_x, linesP, 1, CV_PI/180, 50, 50, 100); // runs the actual detection
@@ -155,7 +164,7 @@ int main(int argc, char *argv[])
 #endif
 
             img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", lines_frame).toImageMsg();
-            img_pub.publish(img_msg);
+            img_pub2.publish(img_msg);
         }
         tof.releaseFrame(frame);
     }
