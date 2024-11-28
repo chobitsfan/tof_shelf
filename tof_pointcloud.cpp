@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
     sigemptyset(&abort_act.sa_mask);
     abort_act.sa_flags = 0;
     sigaction(SIGINT, &abort_act, NULL);
-#if 0
+#ifdef PUB_PP
     sensor_msgs::PointCloud2 point_cloud;
     point_cloud.header.frame_id = "body";
     point_cloud.width = 240;
@@ -78,11 +78,10 @@ int main(int argc, char *argv[])
     image_transport::Publisher img_pub2 = it.advertise("edge_image", 1);
 
     cv::Mat grad_x(180, 240, CV_16S);
-    //cv::Mat grad_y(180, 240, CV_32F);
-    //cv::Mat abs_grad_x(180, 240, CV_8U);
-    //cv::Mat abs_grad_y(180, 240, CV_8U);
+    cv::Mat grad_x_thresh(180, 240, CV_16S);
+    cv::Mat grad_8u(180, 240, CV_8U);
     cv::Mat gray_frame(180, 240, CV_8U);
-    cv::Mat lines_frame(180, 240, CV_8U);
+    cv::Mat lines_frame(180, 240, CV_8UC3);
 
     cv::Ptr<cv::LineSegmentDetector> lsd = cv::createLineSegmentDetector();
 
@@ -91,7 +90,7 @@ int main(int argc, char *argv[])
         if (frame != nullptr) {
             depth_ptr = (float*)frame->getData(Arducam::FrameType::DEPTH_FRAME);
             confidence_ptr = (float*)frame->getData(Arducam::FrameType::CONFIDENCE_FRAME);
-#if 0
+#ifdef PUB_PP
             point_cloud.header.stamp = ros::Time::now();
             //unsigned int pos = 0;
             //float max_conf = 0;
@@ -139,38 +138,37 @@ int main(int argc, char *argv[])
             /*double max;
             cv::minMaxLoc(grad_x, NULL, &max);
             printf("%f\n", max);*/
-            cv::threshold(grad_x, grad_x, GRAD_THRESH, 255, cv::THRESH_BINARY);
-            grad_x.convertTo(gray_frame, CV_8U);
+            cv::threshold(grad_x, grad_x_thresh, GRAD_THRESH, 255, cv::THRESH_BINARY);
+            grad_x_thresh.convertTo(grad_8u, CV_8U);
             //cv::Sobel(depth_frame, grad_y, -1, 0, 1);
             //cv::convertScaleAbs(grad_x, abs_grad_x);
             //cv::convertScaleAbs(grad_y, abs_grad_y);
             //addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, result_frame);
             //cv::applyColorMap(result_frame, result_frame, cv::COLORMAP_RAINBOW);
             //result_frame.setTo(cv::Scalar(0, 0, 0), confidence_frame < 80);
-            lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8U);
-#if 0
-            std::vector<cv::Vec4f> lines_std;
-            lsd->detect(grad_x, lines_std);
-            //lsd->drawSegments(lines_frame, lines_std);
-            for(size_t i = 0; i < lines_std.size(); i++ )
-            {
-                cv::Vec4f l = lines_std[i];
-                line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), 255, 1, cv::LINE_AA);
-            }
-#else
+            lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8UC3);
+
             // Probabilistic Line Transform
-            std::vector<cv::Vec4i> linesP; // will hold the results of the detection
-            cv::HoughLinesP(gray_frame, linesP, 1, CV_PI/180, 50, 50, 100); // runs the actual detection
+            std::vector<cv::Vec4i> lines_x_p; // will hold the results of the detection
+            cv::HoughLinesP(grad_8u, lines_x_p, 1, CV_PI/180, 80, 70, 5); // runs the actual detection
             //printf("%d lines detected\n", linesP.size());
             // Draw the lines
-            for(size_t i = 0; i < linesP.size(); i++ )
+            for (const cv::Vec4i& l:lines_x_p)
             {
-                cv::Vec4i l = linesP[i];
-                line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), 255, 1, cv::LINE_AA);
+                cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(0,0,255), 1, cv::LINE_AA);
             }
-#endif
 
-            img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", lines_frame).toImageMsg();
+            cv::threshold(grad_x, grad_x_thresh, -GRAD_THRESH, 255, cv::THRESH_BINARY_INV);
+            grad_x_thresh.convertTo(grad_8u, CV_8U);
+            std::vector<cv::Vec4i> lines_x_n; // will hold the results of the detection
+            cv::HoughLinesP(grad_8u, lines_x_n, 1, CV_PI/180, 80, 70, 5); // runs the actual detection
+            // Draw the lines
+            for (const cv::Vec4i& l:lines_x_n)
+            {
+                cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(0,255,0), 1, cv::LINE_AA);
+            }
+
+            img_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", lines_frame).toImageMsg();
             img_pub2.publish(img_msg);
         }
         tof.releaseFrame(frame);
