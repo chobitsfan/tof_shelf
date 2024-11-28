@@ -174,12 +174,21 @@ int main(int argc, char *argv[])
             img_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", lines_frame).toImageMsg();
             img_pub2.publish(img_msg);
 
-            lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8UC3);
+            //only keep vertical lines which postive & negative edges are close enough
+            gray_frame = cv::Mat::zeros(lines_frame.size(), CV_8U);
             std::vector<cv::Vec4i> vert_structs;
             for (const cv::Vec4i& pl:lines_x_p) {
+                bool dup_lines = false;
+                for (const cv::Vec4i& v:vert_structs) {
+                    if (abs(pl[0]-v[0]) < 2) {
+                        dup_lines = true;
+                        break;
+                    }
+                }
+                if (dup_lines) continue;
                 for (const cv::Vec4i& nl:lines_x_n) {
                     if (pl[0]-nl[0]<20 && pl[0]-nl[0]>2) {
-                        vert_structs.emplace_back(nl[0], nl[1], nl[2], nl[3]);
+                        //vert_structs.emplace_back(nl[0], nl[1], nl[2], nl[3]);
                         vert_structs.emplace_back(pl[0], pl[1], pl[2], pl[3]);
                         break;
                     }
@@ -187,14 +196,15 @@ int main(int argc, char *argv[])
             }
             for (const cv::Vec4i& v:vert_structs)
             {
-                cv::line(lines_frame, cv::Point(v[0], v[1]), cv::Point(v[2], v[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
+                cv::line(gray_frame, cv::Point(v[0], v[1]), cv::Point(v[2], v[3]), 255, 1, cv::LINE_AA);
             }
             for (const cv::Vec4i& l:lines_y)
             {
-                cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
+                cv::line(gray_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), 255, 1, cv::LINE_AA);
             }
-            img_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", lines_frame).toImageMsg();
+            img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", gray_frame).toImageMsg();
             img_pub3.publish(img_msg);
+            printf("hori %ld, veri %ld\n", lines_y.size(), vert_structs.size());
         }
         tof.releaseFrame(frame);
     }
