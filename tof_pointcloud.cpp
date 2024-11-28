@@ -8,6 +8,9 @@
 #include <cv_bridge/cv_bridge.h>
 #include <ArducamTOFCamera.hpp>
 
+//see https://stackoverflow.com/questions/44081873/what-are-the-units-and-limits-of-gradient-magnitude
+#define GRAD_THRESH 300
+
 bool gogogo = true;
 
 void abort_handler(int signum) {
@@ -74,11 +77,11 @@ int main(int argc, char *argv[])
     image_transport::Publisher img_pub = it.advertise("depth_image", 1);
     image_transport::Publisher img_pub2 = it.advertise("edge_image", 1);
 
-    cv::Mat grad_x(180, 240, CV_8U);
+    cv::Mat grad_x(180, 240, CV_16S);
     //cv::Mat grad_y(180, 240, CV_32F);
     //cv::Mat abs_grad_x(180, 240, CV_8U);
     //cv::Mat abs_grad_y(180, 240, CV_8U);
-    cv::Mat result_frame(180, 240, CV_8U);
+    cv::Mat gray_frame(180, 240, CV_8U);
     cv::Mat lines_frame(180, 240, CV_8U);
 
     cv::Ptr<cv::LineSegmentDetector> lsd = cv::createLineSegmentDetector();
@@ -121,25 +124,29 @@ int main(int argc, char *argv[])
             cv::Mat depth_frame(180, 240, CV_32F, depth_ptr);
             cv::Mat confidence_frame(180, 240, CV_32F, confidence_ptr);
             depth_frame.setTo(2000, confidence_frame < 60);
+            cv::threshold(depth_frame, depth_frame, 2000, 0, cv::THRESH_TRUNC);
             //cv::flip(depth_frame, depth_frame, -1);
             //double max;
             //cv::minMaxLoc(depth_frame, NULL, &max);
             //printf("max dist %f\n", max);
-            depth_frame.convertTo(result_frame, CV_8U, 255.0 / 2000.0);
+            depth_frame.convertTo(gray_frame, CV_8U, 0.1);
             //cv::convertScaleAbs(depth_frame, result_frame);
-            sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", result_frame).toImageMsg();
+            sensor_msgs::ImagePtr img_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", gray_frame).toImageMsg();
             img_pub.publish(img_msg);
             //cv::flip(result_frame, result_frame, -1);
             //GaussianBlur(result_frame, result_frame, cv::Size(3, 3), 0);
-            cv::Sobel(result_frame, grad_x, CV_8U, 1, 0, -1);
-            cv::threshold(grad_x, grad_x, 250, 255, cv::THRESH_BINARY);
+            cv::Sobel(gray_frame, grad_x, CV_16S, 1, 0, -1);
+            /*double max;
+            cv::minMaxLoc(grad_x, NULL, &max);
+            printf("%f\n", max);*/
+            cv::threshold(grad_x, grad_x, GRAD_THRESH, 255, cv::THRESH_BINARY);
+            grad_x.convertTo(gray_frame, CV_8U);
             //cv::Sobel(depth_frame, grad_y, -1, 0, 1);
             //cv::convertScaleAbs(grad_x, abs_grad_x);
             //cv::convertScaleAbs(grad_y, abs_grad_y);
             //addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, result_frame);
             //cv::applyColorMap(result_frame, result_frame, cv::COLORMAP_RAINBOW);
             //result_frame.setTo(cv::Scalar(0, 0, 0), confidence_frame < 80);
-
             lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8U);
 #if 0
             std::vector<cv::Vec4f> lines_std;
@@ -153,7 +160,7 @@ int main(int argc, char *argv[])
 #else
             // Probabilistic Line Transform
             std::vector<cv::Vec4i> linesP; // will hold the results of the detection
-            cv::HoughLinesP(grad_x, linesP, 1, CV_PI/180, 50, 50, 100); // runs the actual detection
+            cv::HoughLinesP(gray_frame, linesP, 1, CV_PI/180, 50, 50, 100); // runs the actual detection
             //printf("%d lines detected\n", linesP.size());
             // Draw the lines
             for(size_t i = 0; i < linesP.size(); i++ )
