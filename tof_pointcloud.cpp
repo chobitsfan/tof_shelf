@@ -76,6 +76,7 @@ int main(int argc, char *argv[])
     image_transport::ImageTransport it(nh);
     image_transport::Publisher img_pub = it.advertise("depth_image", 1);
     image_transport::Publisher img_pub2 = it.advertise("edge_image", 1);
+    image_transport::Publisher img_pub3 = it.advertise("struct_image", 1);
 
     cv::Mat grad_x(180, 240, CV_16S);
     cv::Mat grad_x_thresh(180, 240, CV_16S);
@@ -167,9 +168,26 @@ int main(int argc, char *argv[])
             {
                 cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(0,255,0), 1, cv::LINE_AA);
             }
-
             img_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", lines_frame).toImageMsg();
             img_pub2.publish(img_msg);
+
+            lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8UC3);
+            std::vector<cv::Vec4i> vert_structs;
+            for (const cv::Vec4i& pl:lines_x_p) {
+                for (const cv::Vec4i& nl:lines_x_n) {
+                    if (pl[0]-nl[0]<20) {
+                        vert_structs.emplace_back(nl[0], nl[1], nl[2], nl[3]);
+                        vert_structs.emplace_back(pl[0], pl[1], pl[2], pl[3]);
+                        break;
+                    }
+                }
+            }
+            for (const cv::Vec4i& v:vert_structs)
+            {
+                cv::line(lines_frame, cv::Point(v[0], v[1]), cv::Point(v[2], v[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
+            }
+            img_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", lines_frame).toImageMsg();
+            img_pub3.publish(img_msg);
         }
         tof.releaseFrame(frame);
     }
