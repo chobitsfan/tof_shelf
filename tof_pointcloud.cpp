@@ -207,18 +207,25 @@ int main(int argc, char *argv[])
             line_list.color.r = 1.0;
             line_list.color.a = 1.0;
             //printf("vert structures:");
-#if 0
+#if 1
             for (const cv::Vec4i& v:vert_structs)
             {
                 //cv::line(lines_frame, cv::Point(v[0], v[1]), cv::Point(v[2], v[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
                 //printf("[%d,%d:%d->%d,%d:%d] ", v[0], v[1], depth_8u.at<uchar>(v[1],v[0]), v[2], v[3], depth_8u.at<uchar>(v[3],v[2]));
-                float d = depth_frame.at<float>(v[1],v[0]) * 0.001;
+                cv::Mat sub_d = depth_frame(cv::Rect(v[0]-1, v[1]-1, 3, 3) & cv::Rect(0, 0, 240, 180)).clone();
+                float* pp = sub_d.ptr<float>();
+                std::sort(pp, pp+9);
+                float d = pp[4] * 0.001f;
                 geometry_msgs::Point p;
                 p.x = d;
                 p.y = (120 - v[0]) / fx * d;
                 p.z = (90 - v[1]) / fy * d;
                 line_list.points.push_back(p);
-                d = depth_frame.at<float>(v[3],v[2]) * 0.001;
+
+                sub_d = depth_frame(cv::Rect(v[2]-1, v[3]-1, 3, 3) & cv::Rect(0, 0, 240, 180)).clone();
+                pp = sub_d.ptr<float>();
+                std::sort(pp, pp+9);
+                d = pp[4] * 0.001f;
                 p.x = d;
                 p.y = (120 - v[2]) / fx * d;
                 p.z = (90 - v[3]) / fy * d;
@@ -233,33 +240,38 @@ int main(int argc, char *argv[])
                 //printf("[%d,%d:%d->%d,%d:%d] ", l[0], l[1], depth_8u.at<uchar>(l[1]-2,l[0]), l[2], l[3], depth_8u.at<uchar>(l[3]-2,l[2]));
                 int y1 = l[1]-3;
                 int y2 = l[3]-3;
-                cv::Mat sub_d = depth_frame(cv::Rect(l[0]-1, y1-1, 3, 3) & cv::Rect(0, 0, 240, 180)).clone();
-                float* pp = sub_d.ptr<float>();
-                std::sort(pp, pp+9);
-                //for (int i=0;i<5;i++) printf("%f ", dd[i]);
-                //printf("\n");
-                //float d = depth_frame.at<float>(y1,l[0]) * 0.001;
-                float d = pp[4]*0.001f;
-                geometry_msgs::Point p;
-                p.x = d;
-                p.y = (120 - l[0]) / fx * d;
-                p.z = (90 - y1) / fy * d;
-                line_list.points.push_back(p);
-                
-                sub_d = depth_frame(cv::Rect(l[2]-1, y2-1, 3, 3) & cv::Rect(0, 0, 240, 180)).clone();
-                pp = sub_d.ptr<float>();
-                std::sort(pp, pp+9);
-                //pp = depth_frame.ptr<float>(y2,l[2]-5);
-                //memcpy(dd, pp, sizeof(float)*5);
-                //std::sort(dd, dd+5);
-                //for (int i=0;i<5;i++) printf("%f ", dd[i]);
-                //printf("\n");
-                //d = depth_frame.at<float>(y2,l[2]) * 0.001;
-                d = pp[4]*0.001f;
-                p.x = d;
-                p.y = (120 - l[2]) / fx * d;
-                p.z = (90 - y2) / fy * d;
-                line_list.points.push_back(p);
+                if (y1 > 0 && y2 > 0) {
+                    int mx;
+                    if (l[0] == 0) mx = 0; else if (l[0] == 239) mx = 237; else mx = l[0] - 1;
+                    cv::Mat sub_d = depth_frame(cv::Rect(mx, y1-1, 3, 3)).clone();
+                    float* pp = sub_d.ptr<float>();
+                    std::sort(pp, pp+9);
+                    //for (int i=0;i<5;i++) printf("%f ", dd[i]);
+                    //printf("\n");
+                    //float d = depth_frame.at<float>(y1,l[0]) * 0.001;
+                    float d = pp[4]*0.001f;
+                    geometry_msgs::Point p;
+                    p.x = d;
+                    p.y = (120 - l[0]) / fx * d;
+                    p.z = (90 - y1) / fy * d;
+                    line_list.points.push_back(p);
+
+                    if (l[2] == 0) mx = 0; else if (l[2] == 239) mx = 237; else mx = l[2] - 1;
+                    sub_d = depth_frame(cv::Rect(mx, y2-1, 3, 3)).clone();
+                    pp = sub_d.ptr<float>();
+                    std::sort(pp, pp+9);
+                    //pp = depth_frame.ptr<float>(y2,l[2]-5);
+                    //memcpy(dd, pp, sizeof(float)*5);
+                    //std::sort(dd, dd+5);
+                    //for (int i=0;i<5;i++) printf("%f ", dd[i]);
+                    //printf("\n");
+                    //d = depth_frame.at<float>(y2,l[2]) * 0.001;
+                    d = pp[4]*0.001f;
+                    p.x = d;
+                    p.y = (120 - l[2]) / fx * d;
+                    p.z = (90 - y2) / fy * d;
+                    line_list.points.push_back(p);
+                }
             }
             //printf("\n");
             //lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8UC3);
