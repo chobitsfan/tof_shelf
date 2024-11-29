@@ -20,6 +20,10 @@ void abort_handler(int signum) {
     gogogo = false;
 }
 
+bool line_compare(const cv::Vec4i& a, const cv::Vec4i& b) {
+    return (a[0]-a[2])*(a[0]-a[2])+(a[1]-a[3])*(a[1]-a[3])>(b[0]-b[2])*(b[0]-b[2])+(b[1]-b[3])*(b[1]-b[3]);
+}
+
 int main(int argc, char *argv[])
 {
     struct sigaction abort_act;
@@ -196,6 +200,10 @@ int main(int argc, char *argv[])
                     }
                 }
             }
+
+            std::sort(lines_y.begin(), lines_y.end(), line_compare);
+            std::sort(vert_structs.begin(), vert_structs.end(), line_compare);
+
             visualization_msgs::Marker line_list;
             line_list.header.frame_id = "body";
             line_list.header.stamp = ros::Time::now();
@@ -206,36 +214,45 @@ int main(int argc, char *argv[])
             line_list.scale.x = 0.01;
             line_list.color.r = 1.0;
             line_list.color.a = 1.0;
+
             //printf("vert structures:");
-#if 1
-            for (const cv::Vec4i& v:vert_structs)
-            {
+            //for (const cv::Vec4i& v:vert_structs)
+            if (vert_structs.size() > 0) {
+                const cv::Vec4i& v = vert_structs.front();
                 //cv::line(lines_frame, cv::Point(v[0], v[1]), cv::Point(v[2], v[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
                 //printf("[%d,%d:%d->%d,%d:%d] ", v[0], v[1], depth_8u.at<uchar>(v[1],v[0]), v[2], v[3], depth_8u.at<uchar>(v[3],v[2]));
-                cv::Mat sub_d = depth_frame(cv::Rect(v[0]-1, v[1]-1, 3, 3) & cv::Rect(0, 0, 240, 180)).clone();
-                float* pp = sub_d.ptr<float>();
-                std::sort(pp, pp+9);
-                float d = pp[4] * 0.001f;
-                geometry_msgs::Point p;
-                p.x = d;
-                p.y = (120 - v[0]) / fx * d;
-                p.z = (90 - v[1]) / fy * d;
-                line_list.points.push_back(p);
+                int x1 = v[0]-2;
+                int x2 = v[2]-2;
+                if (x1 > 0 && x2 > 0) {
+                    int my;
+                    if (v[1] == 0) my = 0; else if (v[1] == 179) my = 177; else my = v[1] - 1;
+                    cv::Mat sub_d = depth_frame(cv::Rect(x1-1, my, 3, 3)).clone();
+                    float* pp = sub_d.ptr<float>();
+                    std::sort(pp, pp+9);
+                    float d = pp[4] * 0.001f;
+                    geometry_msgs::Point p;
+                    p.x = d;
+                    p.y = (120 - x1) / fx * d;
+                    p.z = (90 - v[1]) / fy * d;
+                    line_list.points.push_back(p);
 
-                sub_d = depth_frame(cv::Rect(v[2]-1, v[3]-1, 3, 3) & cv::Rect(0, 0, 240, 180)).clone();
-                pp = sub_d.ptr<float>();
-                std::sort(pp, pp+9);
-                d = pp[4] * 0.001f;
-                p.x = d;
-                p.y = (120 - v[2]) / fx * d;
-                p.z = (90 - v[3]) / fy * d;
-                line_list.points.push_back(p);
+                    if (v[3] == 0) my = 0; else if (v[3] == 179) my = 177; else my = v[3] - 1;
+                    sub_d = depth_frame(cv::Rect(x2-1, my, 3, 3)).clone();
+                    pp = sub_d.ptr<float>();
+                    std::sort(pp, pp+9);
+                    d = pp[4] * 0.001f;
+                    p.x = d;
+                    p.y = (120 - x2) / fx * d;
+                    p.z = (90 - v[3]) / fy * d;
+                    line_list.points.push_back(p);
+                }
             }
-#endif
+
             //printf("hori structures:");
             //float dd[5];
-            for (const cv::Vec4i& l:lines_y)
-            {
+            //for (const cv::Vec4i& l:lines_y)
+            if (lines_y.size() > 0) {
+                const cv::Vec4i& l = lines_y.front();
                 //cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
                 //printf("[%d,%d:%d->%d,%d:%d] ", l[0], l[1], depth_8u.at<uchar>(l[1]-2,l[0]), l[2], l[3], depth_8u.at<uchar>(l[3]-2,l[2]));
                 int y1 = l[1]-3;
