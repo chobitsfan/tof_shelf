@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
             cv::threshold(grad_x, grad_x_thresh, -GRAD_THRESH, 255, cv::THRESH_BINARY_INV);
             grad_x_thresh.convertTo(grad_8u, CV_8U);
             std::vector<cv::Vec4i> lines_x_n; // will hold the results of the detection
-            cv::HoughLinesP(grad_8u, lines_x_n, 1, CV_PI/180, 80, 70, 5); // runs the actual detection
+            cv::HoughLinesP(grad_8u, lines_x_n, 1, CV_PI/180, 80, 50, 5); // runs the actual detection
             // Draw the lines
             for (const cv::Vec4i& l:lines_x_n)
             {
