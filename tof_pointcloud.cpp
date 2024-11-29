@@ -91,8 +91,6 @@ int main(int argc, char *argv[])
     cv::Mat depth_8u(180, 240, CV_8U);
     cv::Mat lines_frame(180, 240, CV_8UC3);
 
-    cv::Ptr<cv::LineSegmentDetector> lsd = cv::createLineSegmentDetector();
-
     while (gogogo) {
         frame = tof.requestFrame(200);
         if (frame != nullptr) {
@@ -150,7 +148,6 @@ int main(int argc, char *argv[])
             // Probabilistic Line Transform
             std::vector<cv::Vec4i> lines_x_p; // will hold the results of the detection
             cv::HoughLinesP(grad_8u, lines_x_p, 1, CV_PI/180, 80, 50, 5); // runs the actual detection
-            //printf("%d lines detected\n", linesP.size());
             // Draw the lines
             lines_frame = cv::Mat::zeros(lines_frame.size(), CV_8UC3);
             for (const cv::Vec4i& l:lines_x_p)
@@ -173,17 +170,30 @@ int main(int argc, char *argv[])
             grad_x_thresh.convertTo(grad_8u, CV_8U);
             std::vector<cv::Vec4i> lines_y;
             cv::HoughLinesP(grad_8u, lines_y, 1, CV_PI/180, 80, 80, 5); // runs the actual detection
-            // Draw the lines
-            for (const cv::Vec4i& l:lines_y)
+            int max_len_sq = 0;
+            cv::Vec4i* hori_struct = NULL;
+            // find the horizontal line with max length
+            for (cv::Vec4i& l:lines_y)
             {
+                // Draw the lines
                 cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,0,0), 1, cv::LINE_AA);
+
+                int dx = l[0]-l[2];
+                int dy = l[1]-l[3];
+                int len_sq = dx*dx+dy*dy;
+                if (len_sq > max_len_sq) {
+                    max_len_sq = len_sq;
+                    hori_struct = &l;
+                }
             }
             img_msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", lines_frame).toImageMsg();
             img_pub2.publish(img_msg);
 
             //only keep vertical lines which postive & negative edges are close enough
-            std::vector<cv::Vec4i> vert_structs;
-            for (const cv::Vec4i& pl:lines_x_p) {
+            //std::vector<cv::Vec4i> vert_structs;
+            cv::Vec4i* vert_struct = NULL;
+            max_len_sq = 0;
+            for (cv::Vec4i& pl:lines_x_p) {
                 /*bool dup_lines = false;
                 for (const cv::Vec4i& v:vert_structs) {
                     if (abs(pl[0]-v[0]) < 3) {
@@ -195,14 +205,18 @@ int main(int argc, char *argv[])
                 for (const cv::Vec4i& nl:lines_x_n) {
                     if (pl[0]-nl[0]<20 && pl[0]-nl[0]>2) {
                         //vert_structs.emplace_back(nl[0], nl[1], nl[2], nl[3]);
-                        vert_structs.emplace_back(pl[0], pl[1], pl[2], pl[3]);
+                        //vert_structs.emplace_back(pl[0], pl[1], pl[2], pl[3]);
+                        int dx = pl[0]-pl[2];
+                        int dy = pl[1]-pl[3];
+                        int len_sq = dx*dx+dy*dy;
+                        if (len_sq > max_len_sq) {
+                            max_len_sq = len_sq;
+                            vert_struct = &pl;
+                        }
                         break;
                     }
                 }
             }
-
-            std::sort(lines_y.begin(), lines_y.end(), line_compare);
-            std::sort(vert_structs.begin(), vert_structs.end(), line_compare);
 
             visualization_msgs::Marker line_list;
             line_list.header.frame_id = "body";
@@ -217,8 +231,8 @@ int main(int argc, char *argv[])
 
             //printf("vert structures:");
             //for (const cv::Vec4i& v:vert_structs)
-            if (vert_structs.size() > 0) {
-                const cv::Vec4i& v = vert_structs.front();
+            if (vert_struct != NULL) {
+                const cv::Vec4i& v = *vert_struct;
                 //cv::line(lines_frame, cv::Point(v[0], v[1]), cv::Point(v[2], v[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
                 //printf("[%d,%d:%d->%d,%d:%d] ", v[0], v[1], depth_8u.at<uchar>(v[1],v[0]), v[2], v[3], depth_8u.at<uchar>(v[3],v[2]));
                 int x1 = v[0]-2;
@@ -251,8 +265,8 @@ int main(int argc, char *argv[])
             //printf("hori structures:");
             //float dd[5];
             //for (const cv::Vec4i& l:lines_y)
-            if (lines_y.size() > 0) {
-                const cv::Vec4i& l = lines_y.front();
+            if (hori_struct != NULL) {
+                const cv::Vec4i& l = *hori_struct;
                 //cv::line(lines_frame, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255,255,255), 1, cv::LINE_AA);
                 //printf("[%d,%d:%d->%d,%d:%d] ", l[0], l[1], depth_8u.at<uchar>(l[1]-2,l[0]), l[2], l[3], depth_8u.at<uchar>(l[3]-2,l[2]));
                 int y1 = l[1]-3;
