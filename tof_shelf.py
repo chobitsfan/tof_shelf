@@ -37,6 +37,7 @@ while rclpy.ok():
             skip_c = 0
             depth_buf = frame.getDepthData()
             confidence_buf = frame.getConfidenceData()
+            tof.releaseFrame(frame)
 
             depth_buf[confidence_buf < 60] = 2000
             depth_buf[depth_buf > 2000] = 2000
@@ -86,8 +87,8 @@ while rclpy.ok():
             img.step = 240*3
             img.data = edge_img.ravel().view(np.uint8)
             img_pub2.publish(img)
-
-        tof.releaseFrame(frame)
+        else:
+            tof.releaseFrame(frame)
 
 tof.stop()
 tof.close()
