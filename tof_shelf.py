@@ -37,12 +37,9 @@ while rclpy.ok():
             skip_c = 0
             depth_buf = frame.getDepthData()
             confidence_buf = frame.getConfidenceData()
-            #depth_buf = depth_buf.astype('uint8')
-            #print(type(depth_buf), depth_buf.ndim, depth_buf.dtype)
 
             depth_buf[confidence_buf < 60] = 2000
             depth_buf[depth_buf > 2000] = 2000
-            #depth_buf = depth_buf * 0.1
             depth_u16 = depth_buf.astype(np.uint16)
 
             img = Image()
@@ -55,24 +52,36 @@ while rclpy.ok():
             img.data = depth_u16.ravel().view(np.uint8)
             img_pub.publish(img)
 
-            #depth_buf = depth_buf * 0.1
-            #edge_img = cv2.cvtColor(depth_buf.astype(np.uint8), cv2.COLOR_GRAY2BGR)
-
-            grad = cv2.Sobel(depth_u16, cv2.CV_16S, 0, 1, -1);
-            ret, grad_thresh = cv2.threshold(grad, GRAD_THRESH, 255, cv2.THRESH_BINARY);
-            grad_u8 = grad_thresh.astype(np.uint8);
-            lines_y = cv2.HoughLinesP(grad_u8, 1, np.pi/180, 50, None, 80, 5)
             edge_img = np.zeros((180, 240, 3), dtype=np.uint8)
+
+            # detect vertical structures
+            grad = cv2.Sobel(depth_u16, cv2.CV_16S, 1, 0, -1)
+            ret, grad_thresh = cv2.threshold(grad, GRAD_THRESH, 255, cv2.THRESH_BINARY)
+            grad_u8 = grad_thresh.astype(np.uint8)
+            lines_x_p = cv2.HoughLinesP(grad_u8, 1, np.pi/180, 50, None, 50, 5)
+            if lines_x_p is not None:
+                for line in lines_x_p:
+                    l = line[0]
+                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (0,0,255), 1, cv2.LINE_8)
+            ret, grad_thresh = cv2.threshold(grad, -GRAD_THRESH, 255, cv2.THRESH_BINARY_INV);
+            grad_u8 = grad_thresh.astype(np.uint8)
+            lines_x_n = cv2.HoughLinesP(grad_u8, 1, np.pi/180, 50, None, 50, 5)
+            if lines_x_n is not None:
+                for line in lines_x_n:
+                    l = line[0]
+                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (0,255,0), 1, cv2.LINE_8)
+
+            # detect horizontal structures
+            grad = cv2.Sobel(depth_u16, cv2.CV_16S, 0, 1, -1)
+            ret, grad_thresh = cv2.threshold(grad, GRAD_THRESH, 255, cv2.THRESH_BINARY)
+            grad_u8 = grad_thresh.astype(np.uint8)
+            lines_y = cv2.HoughLinesP(grad_u8, 1, np.pi/180, 50, None, 80, 5)
             if lines_y is not None:
                 for line in lines_y:
                     l = line[0]
                     cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (255,0,0), 1, cv2.LINE_8)
 
-            #img = Image()
             img.header.stamp = node.get_clock().now().to_msg()
-            #img.height = 180
-            #img.width = 240
-            #img.is_bigendian = 0
             img.encoding = "bgr8"
             img.step = 240*3
             img.data = edge_img.ravel().view(np.uint8)
