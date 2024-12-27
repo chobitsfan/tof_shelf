@@ -175,13 +175,7 @@ while rclpy.ok():
             line_list.action = Marker.ADD
             line_list.type = Marker.LINE_LIST
             line_list.id = 1
-#            line_list.pose.position.x = 0
-#            line_list.pose.position.y = 0
-#            line_list.pose.position.z = 0
-#            line_list.pose.orientation.x = 0
-#            line_list.pose.orientation.y = 0
-#            line_list.pose.orientation.z = 0
-            line_list.pose.orientation.w = 1.0
+            line_list.pose.orientation.w = 1.0 # 1.0, NOT 1
             line_list.ns = "verti_struct"
             line_list.scale.x = 0.01
             line_list.color.r = 1.0
@@ -189,9 +183,7 @@ while rclpy.ok():
 
             if vert_struct is not None:
                 pl, nl = vert_struct
-                pp1 = np.linspace(np.array([pl[1], pl[0]-2]), np.array([pl[3], pl[2]-2]), num=30).astype(np.int32) # opencv y, x for numpy row, col
-                pp2 = np.linspace(np.array([nl[1], nl[0]+2]), np.array([nl[3], nl[2]+2]), num=30).astype(np.int32)
-                pp = np.concatenate((pp1, pp2)) # opencv y, x for numpy row, col
+                pp = np.linspace(np.array([pl[1], (pl[0]+nl[0])/2]), np.array([pl[3], (pl[2]+nl[2])/2]), num=50).astype(np.int32) # opencv y, x for numpy row, col
 
                 ds = depth_u16[tuple(pp.T)]
                 hist, bin_edges = np.histogram(ds, bins=4)
@@ -200,6 +192,7 @@ while rclpy.ok():
                 pp_3d = [(d * 0.001, (120 - p[1]) / fx * (d * 0.001), (90 - p[0]) / fy * (d * 0.001)) for p in pp if bin_edges[max_i] <= (d := depth_u16[p[0], p[1]]) <= bin_edges[max_i + 1]]
 
                 pp_pub.publish(point_cloud2.create_cloud_xyz32(header, pp_3d))
+
                 l = cv2.fitLine(np.array(pp_3d), cv2.DIST_L2, 0, 0.01, 0.01)
                 x = l[3].item(0)
                 y = l[4].item(0)
@@ -217,16 +210,6 @@ while rclpy.ok():
                 p.y = y + vy
                 p.z = z + vz
                 line_list.points.append(p)
-#            p = Point()
-#            p.x = 1.0
-#            p.y = 1.0
-#            p.z = 0
-#            line_list.points.append(p)
-#            p = Point()
-#            p.x = 1.0
-#            p.y = 1.0
-#            p.z = 10.0
-#            line_list.points.append(p)
             lines_pub.publish(line_list)
 #
 #            if vert_struct is not None:
