@@ -9,6 +9,12 @@ from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Header
 from ArducamDepthCamera import ArducamCamera, TOFConnect, TOFDeviceType, TOFOutput, TOFControl, DepthData, ArducamInfo
 
+def swap_coordinates(line):
+    if line[1] > line[3]:
+        line[0], line[2] = line[2], line[0]
+        line[1], line[3] = line[3], line[1]
+    return line
+
 GRAD_THRESH = 300
 fx = 240 / (2 * math.tan(0.5 * math.pi * 64.3 / 180));
 fy = 180 / (2 * math.tan(0.5 * math.pi * 50.4 / 180));
@@ -90,30 +96,15 @@ while rclpy.ok():
             if lines_x_p is not None and lines_x_n is not None:
                 max_len_sq = 0
                 for line_x_p in lines_x_p:
-                    pl = line_x_p[0]
-                    if pl[1] > pl[3]:
-                        tx = pl[0]
-                        ty = pl[1]
-                        pl[0] = pl[2]
-                        pl[1] = pl[3]
-                        pl[2] = tx
-                        pl[3] = ty
+                    pl = swap_coordinates(line_x_p[0])
                     for line_x_n in lines_x_n:
-                        nl = line_x_n[0]
-                        if nl[1] > nl[3]:
-                            tx = nl[0]
-                            ty = nl[1]
-                            nl[0] = nl[2]
-                            nl[1] = nl[3]
-                            nl[2] = tx
-                            nl[3] = ty
-                        if pl[0]-nl[0]<20 and pl[0]-nl[0]>2 and abs(pl[1]-nl[1])<10:
-                            dx = pl[0]-pl[2]
-                            dy = pl[1]-pl[3]
-                            len_sq = dx*dx+dy*dy;
+                        nl = swap_coordinates(line_x_n[0])
+                        if 2 < pl[0] - nl[0] < 20 and abs(pl[1] - nl[1]) < 10:
+                            dx = pl[0] - pl[2]
+                            dy = pl[1] - pl[3]
+                            len_sq = dx * dx + dy * dy
                             if len_sq > max_len_sq:
                                 max_len_sq = len_sq
-                                #vert_struct = pl
                                 vert_struct = (pl, nl)
                             #cv2.fillConvexPoly(verti_mask, np.array([[pl[0],pl[1]], [pl[2],pl[3]], [nl[2],nl[3]], [nl[0],nl[1]]]), 65535)
                             #vert_structs.append((pl[0]-2, pl[1], pl[2]-2, pl[3]))
@@ -133,14 +124,14 @@ while rclpy.ok():
             if lines_y is not None:
                 max_len_sq = 0
                 for line in lines_y:
-                    l = line[0]
-                    dx = l[0]-l[2]
-                    dy = l[1]-l[3]
-                    len_sq = dx*dx+dy*dy
+                    x1, y1, x2, y2 = line[0]
+                    dx = x1 - x2
+                    dy = y1 - y2
+                    len_sq = dx * dx + dy * dy
                     if len_sq > max_len_sq:
                         max_len_sq = len_sq
-                        hori_struct = l
-                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (255,0,0), 1, cv2.LINE_8)
+                        hori_struct = (x1, y1, x2, y2)
+                    cv2.line(edge_img, (x1, y1), (x2, y2), (255,0,0), 1, cv2.LINE_8)
 
             img.header = header
             img.encoding = "bgr8"
