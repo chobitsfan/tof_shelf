@@ -124,7 +124,7 @@ while rclpy.ok():
             line_list.header.stamp = node.get_clock().now().to_msg()
             line_list.action = Marker.ADD
             line_list.type = Marker.LINE_LIST
-            line_list.pose.orientation.w = 1
+            line_list.pose.orientation.w = 1.0
             line_list.ns = "verti_struct"
             line_list.scale.x = 0.01
             line_list.color.r = 1.0
