@@ -54,8 +54,7 @@ while rclpy.ok():
             confidence_buf = frame.getConfidenceData()
             tof.releaseFrame(frame)
 
-            depth_buf[confidence_buf < 60] = 2000
-            depth_buf[depth_buf > 2000] = 2000
+            depth_buf[(confidence_buf < 60) | (depth_buf > 2000)] = 2000
             depth_u16 = depth_buf.astype(np.uint16)
             depth_u16 = cv2.medianBlur(depth_u16, 3)
 
