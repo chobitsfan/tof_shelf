@@ -197,12 +197,8 @@ while rclpy.ok():
                 hist, bin_edges = np.histogram(ds, bins=4)
                 max_i = np.argmax(hist)
 
-                pp_3d = []
-                for p in pp:
-                    d = depth_u16[p[0], p[1]]
-                    if d >= bin_edges[max_i] and d <= bin_edges[max_i+1]:
-                        d = d * 0.001
-                        pp_3d.append((d, (120 - p[1]) / fx * d, (90 - p[0]) / fy * d))
+                pp_3d = [(d * 0.001, (120 - p[1]) / fx * (d * 0.001), (90 - p[0]) / fy * (d * 0.001)) for p in pp if bin_edges[max_i] <= (d := depth_u16[p[0], p[1]]) <= bin_edges[max_i + 1]]
+
                 pp_pub.publish(point_cloud2.create_cloud_xyz32(header, pp_3d))
                 l = cv2.fitLine(np.array(pp_3d), cv2.DIST_L2, 0, 0.01, 0.01)
                 x = l[3].item(0)
