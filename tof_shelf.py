@@ -78,17 +78,17 @@ while rclpy.ok():
             ret, grad_thresh = cv2.threshold(grad, GRAD_THRESH, 255, cv2.THRESH_BINARY)
             grad_u8 = grad_thresh.astype(np.uint8)
             lines_x_p = cv2.HoughLinesP(grad_u8, 1, np.pi/180, 50, None, 50, 5)
-            if lines_x_p is not None:
-                for line in lines_x_p:
-                    l = line[0]
-                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (0,0,255), 1, cv2.LINE_8)
+#            if lines_x_p is not None:
+#                for line in lines_x_p:
+#                    l = line[0]
+#                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (0,0,255), 1, cv2.LINE_8)
             ret, grad_thresh = cv2.threshold(grad, -GRAD_THRESH, 255, cv2.THRESH_BINARY_INV);
             grad_u8 = grad_thresh.astype(np.uint8)
             lines_x_n = cv2.HoughLinesP(grad_u8, 1, np.pi/180, 50, None, 50, 5)
-            if lines_x_n is not None:
-                for line in lines_x_n:
-                    l = line[0]
-                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (0,255,0), 1, cv2.LINE_8)
+#            if lines_x_n is not None:
+#                for line in lines_x_n:
+#                    l = line[0]
+#                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (0,255,0), 1, cv2.LINE_8)
             # only select vertical lines which postive & negative edges close enough
             vert_struct = None
             #verti_mask = np.zeros((180, 240), np.uint16)
@@ -130,13 +130,7 @@ while rclpy.ok():
                     if len_sq > max_len_sq:
                         max_len_sq = len_sq
                         hori_struct = (x1, y1, x2, y2)
-                    cv2.line(edge_img, (x1, y1), (x2, y2), (255,0,0), 1, cv2.LINE_8)
-
-            img.header = header
-            img.encoding = "bgr8"
-            img.step = 240*3
-            img.data = edge_img.ravel().view(np.uint8)
-            img_pub2.publish(img)
+#                    cv2.line(edge_img, (x1, y1), (x2, y2), (255,0,0), 1, cv2.LINE_8)
 
             line_list = Marker()
             line_list.header = header
@@ -150,6 +144,10 @@ while rclpy.ok():
             line_list.color.a = 1.0
             if vert_struct is not None:
                 pl, nl = vert_struct
+
+                cv2.line(edge_img, (pl[0], pl[1]), (pl[2], pl[3]), (0,0,255), 1, cv2.LINE_8)
+                cv2.line(edge_img, (nl[0], nl[1]), (nl[2], nl[3]), (0,255,0), 1, cv2.LINE_8)
+
                 pp = np.linspace(np.array([pl[1], (pl[0]+nl[0])/2]), np.array([pl[3], (pl[2]+nl[2])/2]), num=50).astype(np.int32) # opencv y, x for numpy row, col
 
                 ds = depth_u16[tuple(pp.T)]
@@ -185,6 +183,9 @@ while rclpy.ok():
             line_list.color.a = 1.0
             if hori_struct is not None:
                 x1, y1, x2, y2 = hori_struct
+
+                cv2.line(edge_img, (x1, y1), (x2, y2), (255,0,0), 1, cv2.LINE_8)
+
                 pp = np.linspace(np.array([y1-3, x1]), np.array([y2-3, x2]), num=50).astype(np.int32) # opencv y, x for numpy row, col
 
                 ds = depth_u16[tuple(pp.T)]
@@ -214,6 +215,11 @@ while rclpy.ok():
                 line_list.points.append(p)
             lines_pub.publish(line_list)
 
+            img.header = header
+            img.encoding = "bgr8"
+            img.step = 240*3
+            img.data = edge_img.ravel().view(np.uint8)
+            img_pub2.publish(img)
         else:
             tof.releaseFrame(frame)
 
