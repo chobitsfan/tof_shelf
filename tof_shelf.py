@@ -139,28 +139,6 @@ while rclpy.ok():
             img.data = edge_img.ravel().view(np.uint8)
             img_pub2.publish(img)
 
-#            if vert_struct is not None:
-#                pl, nl = vert_struct
-#                xx = (pl[0], pl[2], nl[0], nl[2])
-#                yy = (pl[1], pl[3], nl[1], nl[3])
-#                points = []
-#                for x in range(min(xx), max(xx)):
-#                    for y in range(min(yy), max(yy)):
-#                        d = depth_u16[y, x] * 0.001
-#                        p = (d, (120 - x) / fx * d, (90 - y) / fy * d)
-#                        points.append(p)
-#                pp_pub.publish(point_cloud2.create_cloud_xyz32(header, points))
-
-#            points = []
-#            for x in range(0, 240):
-#                for y in range(0, 180):
-#                    d = depth_u16[y, x]
-#                    if d < 2000:
-#                        d = d * 0.001
-#                        p = (d, (120 - x) / fx * d, (90 - y) / fy * d)
-#                        points.append(p)
-#            pp_pub.publish(point_cloud2.create_cloud_xyz32(header, points))
-
             line_list = Marker()
             line_list.header = header
             line_list.action = Marker.ADD
@@ -171,7 +149,6 @@ while rclpy.ok():
             line_list.scale.x = 0.01
             line_list.color.r = 1.0
             line_list.color.a = 1.0
-
             if vert_struct is not None:
                 pl, nl = vert_struct
                 pp = np.linspace(np.array([pl[1], (pl[0]+nl[0])/2]), np.array([pl[3], (pl[2]+nl[2])/2]), num=50).astype(np.int32) # opencv y, x for numpy row, col
@@ -202,72 +179,42 @@ while rclpy.ok():
                 p.z = z + vz
                 line_list.points.append(p)
             lines_pub.publish(line_list)
-#
-#            if vert_struct is not None:
-#                pl, nl = vert_struct
-#                sx = (pl[0]+nl[0])//2
-#                sy = (pl[1]+nl[1])//2
-#                ex = (pl[2]+nl[2])//2
-#                ey = (pl[3]+nl[3])//2
-#                d = depth_u16[sy, sx] * -0.001
-#                p = Point()
-#                p.x = d
-#                p.y = (120 - sx) / fx * d
-#                p.z = (90 - sy) / fy * d
-#                line_list.points.append(p)
-#                d = depth_u16[ey, ex] * -0.001
-#                p = Point()
-#                p.x = d
-#                p.y = (120 - ex) / fx * d
-#                p.z = (90 - ey) / fy * d
-#                line_list.points.append(p)
 
-#                pp = ((pl[0], pl[1]), (pl[2], pl[3]), (nl[0], nl[1]), (nl[2], nl[3]))
-#                for x, y in pp:
-#                    d = depth_u16[y, x] * -0.001
-#                    p = Point()
-#                    p.x = d
-#                    p.y = (120 - x) / fx * d
-#                    p.z = (90 - y) / fy * d
-#                    line_list.points.append(p)
+            line_list.ns = "hori_struct"
+            line_list.scale.x = 0.01
+            line_list.color.b = 1.0
+            line_list.color.a = 1.0
+            if hori_struct is not None:
+                x1, y1, x2, y2 = hori_struct
+                pp = np.linspace(np.array([y1-3, x1]), np.array([y2-3, x2]), num=50).astype(np.int32) # opencv y, x for numpy row, col
 
-#                lines_pub.publish(line_list)
+                ds = depth_u16[tuple(pp.T)]
+                hist, bin_edges = np.histogram(ds, bins=4)
+                max_i = np.argmax(hist)
 
-#            if vert_struct is not None:
-#                v = vert_struct[0];
-#                x1 = v[0]-2
-#                x2 = v[2]-2
-#                if x1 > 0 and x2 > 0:
-#                    if v[1] == 0:
-#                        my = 0
-#                    elif v[1] == 179:
-#                        my = 177
-#                    else:
-#                        my = v[1] - 1
-#                    pp = np.sort(depth_u16[my:my+3, x1-1:x1+2], axis=None)
-#                    d = pp[4] * -0.001
-#                    p = Point()
-#                    p.x = d
-#                    p.y = (120 - x1) / fx * d
-#                    p.z = (90 - v[1]) / fy * d
-#                    #print("start", p.x, p.y, p.z)
-#                    line_list.points.append(p)
-#
-#                    if v[3] == 0:
-#                        my = 0
-#                    elif v[3] == 179:
-#                        my = 177
-#                    else:
-#                        my = v[3] - 1
-#                    pp = np.sort(depth_u16[my:my+3, x2-1:x2+2], axis=None)
-#                    d = pp[4] * -0.001
-#                    p = Point()
-#                    p.x = d
-#                    p.y = (120 - x2) / fx * d
-#                    p.z = (90 - v[3]) / fy * d
-#                    #print("end", p.x, p.y, p.z)
-#                    line_list.points.append(p)
-#                    lines_pub.publish(line_list)
+                pp_3d = [(d * 0.001, (120 - p[1]) / fx * (d * 0.001), (90 - p[0]) / fy * (d * 0.001)) for p in pp if bin_edges[max_i] <= (d := depth_u16[p[0], p[1]]) <= bin_edges[max_i + 1]]
+
+                pp_pub.publish(point_cloud2.create_cloud_xyz32(header, pp_3d))
+
+                l = cv2.fitLine(np.array(pp_3d), cv2.DIST_L2, 0, 0.01, 0.01)
+                x = l[3].item(0)
+                y = l[4].item(0)
+                z = l[5].item(0)
+                vx = l[0].item(0)
+                vy = l[1].item(0)
+                vz = l[2].item(0)
+                p = Point()
+                p.x = x - vx
+                p.y = y - vy
+                p.z = z - vz
+                line_list.points.append(p)
+                p = Point()
+                p.x = x + vx
+                p.y = y + vy
+                p.z = z + vz
+                line_list.points.append(p)
+            lines_pub.publish(line_list)
+
         else:
             tof.releaseFrame(frame)
 
