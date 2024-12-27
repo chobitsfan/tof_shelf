@@ -51,6 +51,7 @@ while rclpy.ok():
             depth_buf[confidence_buf < 60] = 2000
             depth_buf[depth_buf > 2000] = 2000
             depth_u16 = depth_buf.astype(np.uint16)
+            depth_u16 = cv2.medianBlur(depth_u16, 3)
 
             header = Header()
             header.frame_id = "body"
@@ -188,19 +189,20 @@ while rclpy.ok():
 
             if vert_struct is not None:
                 pl, nl = vert_struct
-                pp = np.linspace(np.array([pl[0]-2, pl[1]]), np.array([pl[2]-2, pl[3]]), num=30).astype(np.int32)
+                pp1 = np.linspace(np.array([pl[1], pl[0]-2]), np.array([pl[3], pl[2]-2]), num=30).astype(np.int32) # opencv y, x for numpy row, col
+                pp2 = np.linspace(np.array([nl[1], nl[0]+2]), np.array([nl[3], nl[2]+2]), num=30).astype(np.int32)
+                pp = np.concatenate((pp1, pp2)) # opencv y, x for numpy row, col
+
+                ds = depth_u16[tuple(pp.T)]
+                hist, bin_edges = np.histogram(ds, bins=4)
+                max_i = np.argmax(hist)
+
                 pp_3d = []
                 for p in pp:
-                    d = depth_u16[p[1], p[0]]
-                    if d < 2000:
+                    d = depth_u16[p[0], p[1]]
+                    if d >= bin_edges[max_i] and d <= bin_edges[max_i+1]:
                         d = d * 0.001
-                        pp_3d.append((d, (120 - p[0]) / fx * d, (90 - p[1]) / fy * d))
-                pp = np.linspace(np.array([nl[0]+2, nl[1]]), np.array([nl[2]+2, nl[3]]), num=30).astype(np.int32)
-                for p in pp:
-                    d = depth_u16[p[1], p[0]]
-                    if d < 2000:
-                        d = d * 0.001
-                        pp_3d.append((d, (120 - p[0]) / fx * d, (90 - p[1]) / fy * d))
+                        pp_3d.append((d, (120 - p[1]) / fx * d, (90 - p[0]) / fy * d))
                 pp_pub.publish(point_cloud2.create_cloud_xyz32(header, pp_3d))
                 l = cv2.fitLine(np.array(pp_3d), cv2.DIST_L2, 0, 0.01, 0.01)
                 x = l[3].item(0)
