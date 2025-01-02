@@ -1,4 +1,4 @@
-import rclpy, cv2, math
+import rclpy, cv2, math, socket, os, struct
 import numpy as np
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -45,7 +45,15 @@ tof.setControl(ac.Control.RANGE, 4)
 info = tof.getCameraInfo()
 print(f"tof resolution: {info.width}x{info.height}")
 
+socket_file = '/tmp/chobits_589361'
+dest_socket_file = '/tmp/chobits_server2'
+if os.path.exists(socket_file):
+    os.remove(socket_file)
+sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+sock.bind(socket_file)
+
 skip_c = 0;
+kernel = np.ones((5,5),np.uint8)
 print("start");
 
 while rclpy.ok():
@@ -61,6 +69,7 @@ while rclpy.ok():
             depth_u16 = depth_buf.astype(np.uint16)
             tof.releaseFrame(frame)
             depth_u16 = cv2.medianBlur(depth_u16, 3)
+            #depth_u16 = cv2.dilate(depth_u16, kernel)
 
             header = Header()
             header.frame_id = "body"
@@ -94,7 +103,7 @@ while rclpy.ok():
 #                    l = line[0]
 #                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (0,255,0), 1, cv2.LINE_8)
             # only select vertical lines which postive & negative edges close enough
-            vert_struct = None
+            vert_lines = None
             #verti_mask = np.zeros((180, 240), np.uint16)
             if lines_x_p is not None and lines_x_n is not None:
                 max_len_sq = 0
@@ -108,7 +117,7 @@ while rclpy.ok():
                             len_sq = dx * dx + dy * dy
                             if len_sq > max_len_sq:
                                 max_len_sq = len_sq
-                                vert_struct = (pl, nl)
+                                vert_lines = (pl, nl)
                             #cv2.fillConvexPoly(verti_mask, np.array([[pl[0],pl[1]], [pl[2],pl[3]], [nl[2],nl[3]], [nl[0],nl[1]]]), 65535)
                             #vert_structs.append((pl[0]-2, pl[1], pl[2]-2, pl[3]))
                             break
@@ -123,7 +132,7 @@ while rclpy.ok():
             grad_u8 = grad_thresh.astype(np.uint8)
             lines_y = cv2.HoughLinesP(grad_u8, 1, np.pi/180, 50, None, 80, 5)
             # find the horizontal line with max length
-            hori_struct = None
+            hori_line = None
             if lines_y is not None:
                 max_len_sq = 0
                 for line in lines_y:
@@ -133,7 +142,7 @@ while rclpy.ok():
                     len_sq = dx * dx + dy * dy
                     if len_sq > max_len_sq:
                         max_len_sq = len_sq
-                        hori_struct = (x1, y1, x2, y2)
+                        hori_line = (x1, y1, x2, y2)
 #                    cv2.line(edge_img, (x1, y1), (x2, y2), (255,0,0), 1, cv2.LINE_8)
 
             line_list = Marker()
@@ -142,12 +151,14 @@ while rclpy.ok():
             line_list.type = Marker.LINE_LIST
             line_list.id = 1
             line_list.pose.orientation.w = 1.0 # 1.0, NOT 1
-            line_list.ns = "verti_struct"
+            line_list.ns = "vert_struct"
             line_list.scale.x = 0.01
             line_list.color.r = 1.0
             line_list.color.a = 1.0
-            if vert_struct is not None:
-                pl, nl = vert_struct
+            if vert_lines is None:
+                vert_struct = (0,) * 6
+            else:
+                pl, nl = vert_lines
 
                 cv2.line(edge_img, (pl[0], pl[1]), (pl[2], pl[3]), (0,0,255), 1, cv2.LINE_8)
                 cv2.line(edge_img, (nl[0], nl[1]), (nl[2], nl[3]), (0,255,0), 1, cv2.LINE_8)
@@ -169,6 +180,8 @@ while rclpy.ok():
                 vx = l[0].item(0)
                 vy = l[1].item(0)
                 vz = l[2].item(0)
+                vert_struct = (x, y, z, vx, vy, vz)
+
                 p = Point()
                 p.x = x - vx
                 p.y = y - vy
@@ -185,8 +198,10 @@ while rclpy.ok():
             line_list.scale.x = 0.01
             line_list.color.b = 1.0
             line_list.color.a = 1.0
-            if hori_struct is not None:
-                x1, y1, x2, y2 = hori_struct
+            if hori_line is None:
+                hori_struct = (0,) * 6
+            else:
+                x1, y1, x2, y2 = hori_line
 
                 cv2.line(edge_img, (x1, y1), (x2, y2), (255,0,0), 1, cv2.LINE_8)
 
@@ -207,6 +222,8 @@ while rclpy.ok():
                 vx = l[0].item(0)
                 vy = l[1].item(0)
                 vz = l[2].item(0)
+                hori_struct = (x, y, z, vx, vy ,vz)
+
                 p = Point()
                 p.x = x - vx
                 p.y = y - vy
@@ -219,6 +236,11 @@ while rclpy.ok():
                 line_list.points.append(p)
             lines_pub.publish(line_list)
 
+            try:
+                sock.sendto(struct.pack('fffffffffffff', 0, *vert_struct, *hori_struct), dest_socket_file)
+            except FileNotFoundError:
+                pass
+
             img.header = header
             img.encoding = "bgr8"
             img.step = 240*3
@@ -229,5 +251,8 @@ while rclpy.ok():
 
 tof.stop()
 tof.close()
+
+sock.close()
+os.remove(socket_file)
 
 rclpy.shutdown()
