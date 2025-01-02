@@ -7,7 +7,7 @@ from geometry_msgs.msg import Point
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Header
-from ArducamDepthCamera import ArducamCamera, TOFConnect, TOFDeviceType, TOFOutput, TOFControl, DepthData, ArducamInfo
+import ArducamDepthCamera as ac
 
 def swap_coordinates(line):
     if line[1] > line[3]:
@@ -26,36 +26,40 @@ img_pub2 = node.create_publisher(Image, "edge_image", 1)
 lines_pub = node.create_publisher(Marker, "struct_lines", 1)
 pp_pub = node.create_publisher(PointCloud2, "point_cloud", 1)
 
-tof = ArducamCamera()
+print("arducam sdk ver", ac.__version__)
+
+tof = ac.ArducamCamera()
 ret = 0
-ret = tof.open(TOFConnect.CSI, 0)
+ret = tof.open(ac.Connection.CSI, 0)
 if not ret:
     print("Failed to open camera. Error code:", ret)
     exit()
-ret = tof.start(TOFOutput.DEPTH)
+ret = tof.start(ac.FrameType.DEPTH)
 if ret != 0:
     print("Failed to start camera. Error code:", ret)
     tof.close()
     exit()
-tof.setControl(TOFControl.RANGE, 2)
-tof.setControl(TOFControl.FRAME_RATE, 5)
-#tof.setControl(TOFControl.AUTO_FRAME_RATE, 0)
+tof.setControl(ac.Control.RANGE, 4)
+#tof.setControl(ac.Control.FRAME_RATE, 5) # do not work
+#tof.setControl(ac.Control.AUTO_FRAME_RATE, 0)
+info = tof.getCameraInfo()
+print(f"tof resolution: {info.width}x{info.height}")
 
 skip_c = 0;
 print("start");
 
 while rclpy.ok():
     frame = tof.requestFrame(200)
-    if frame is not None and isinstance(frame, DepthData):
+    if frame is not None and isinstance(frame, ac.DepthData):
         skip_c += 1
         if skip_c > 5:
             skip_c = 0
-            depth_buf = frame.getDepthData()
-            confidence_buf = frame.getConfidenceData()
-            tof.releaseFrame(frame)
+            depth_buf = frame.depth_data
+            confidence_buf = frame.confidence_data
 
-            depth_buf[(confidence_buf < 60) | (depth_buf > 2000)] = 2000
+            depth_buf[(confidence_buf < 60) | (depth_buf > 2000) | (depth_buf <= 0)] = 2000
             depth_u16 = depth_buf.astype(np.uint16)
+            tof.releaseFrame(frame)
             depth_u16 = cv2.medianBlur(depth_u16, 3)
 
             header = Header()
