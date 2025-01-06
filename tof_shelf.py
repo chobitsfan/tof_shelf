@@ -237,7 +237,7 @@ while rclpy.ok():
             lines_pub.publish(line_list)
 
             try:
-                sock.sendto(struct.pack('fffffffffffff', 0, *vert_struct, *hori_struct), dest_socket_file)
+                sock.sendto(struct.pack('ffffffffffff', *vert_struct, *hori_struct), dest_socket_file)
             except FileNotFoundError:
                 pass
 
