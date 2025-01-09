@@ -19,6 +19,8 @@ GRAD_THRESH = 300
 fx = 240 / (2 * math.tan(0.5 * math.pi * 64.3 / 180));
 fy = 180 / (2 * math.tan(0.5 * math.pi * 50.4 / 180));
 
+struct_width_px = 30
+
 rclpy.init()
 node = rclpy.create_node('tof')
 img_pub = node.create_publisher(Image, "depth_image", 1)
@@ -94,14 +96,14 @@ while rclpy.ok():
 #            if lines_x_p is not None:
 #                for line in lines_x_p:
 #                    l = line[0]
-#                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (0,0,255), 1, cv2.LINE_8)
+#                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (128,255,255), 1, cv2.LINE_8)
             ret, grad_thresh = cv2.threshold(grad, -GRAD_THRESH, 255, cv2.THRESH_BINARY_INV);
             grad_u8 = grad_thresh.astype(np.uint8)
             lines_x_n = cv2.HoughLinesP(grad_u8, 1, np.pi/180, 50, None, 50, 5)
 #            if lines_x_n is not None:
 #                for line in lines_x_n:
 #                    l = line[0]
-#                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (0,255,0), 1, cv2.LINE_8)
+#                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (128,255,255), 1, cv2.LINE_8)
             # only select vertical lines which postive & negative edges close enough
             vert_lines = None
             #verti_mask = np.zeros((180, 240), np.uint16)
@@ -111,7 +113,7 @@ while rclpy.ok():
                     pl = swap_coordinates(line_x_p[0])
                     for line_x_n in lines_x_n:
                         nl = swap_coordinates(line_x_n[0])
-                        if 2 < pl[0] - nl[0] < 20 and abs(pl[1] - nl[1]) < 10:
+                        if 2 < pl[0] - nl[0] < struct_width_px and abs(pl[1] - nl[1]) < 10:
                             dx = pl[0] - pl[2]
                             dy = pl[1] - pl[3]
                             len_sq = dx * dx + dy * dy
@@ -152,7 +154,7 @@ while rclpy.ok():
             line_list.id = 1
             line_list.pose.orientation.w = 1.0 # 1.0, NOT 1
             line_list.ns = "vert_struct"
-            line_list.scale.x = 0.01
+            line_list.scale.x = 0.02
             line_list.color.r = 1.0
             line_list.color.a = 1.0
             if vert_lines is None:
@@ -195,9 +197,8 @@ while rclpy.ok():
             lines_pub.publish(line_list)
 
             line_list.ns = "hori_struct"
-            line_list.scale.x = 0.01
+            line_list.color.r = 0.0
             line_list.color.b = 1.0
-            line_list.color.a = 1.0
             if hori_line is None:
                 hori_struct = (0,) * 6
             else:
