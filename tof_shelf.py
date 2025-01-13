@@ -19,7 +19,10 @@ GRAD_THRESH = 300
 fx = 240 / (2 * math.tan(0.5 * math.pi * 64.3 / 180));
 fy = 180 / (2 * math.tan(0.5 * math.pi * 50.4 / 180));
 
-struct_width_px = 30
+# thanks to ludovic
+struct_width_m = 0.1
+closest_dist_m = 0.5
+struct_width_max_px = struct_width_m * fy / closest_dist_m
 
 rclpy.init()
 node = rclpy.create_node('tof')
