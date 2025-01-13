@@ -106,22 +106,20 @@ while rclpy.ok():
 #                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (128,255,255), 1, cv2.LINE_8)
             # only select vertical lines which postive & negative edges close enough
             vert_lines = None
-            #verti_mask = np.zeros((180, 240), np.uint16)
             if lines_x_p is not None and lines_x_n is not None:
                 max_len_sq = 0
-                for line_x_p in lines_x_p:
-                    pl = swap_coordinates(line_x_p[0])
-                    for line_x_n in lines_x_n:
-                        nl = swap_coordinates(line_x_n[0])
-                        if 2 < pl[0] - nl[0] < struct_width_px and abs(pl[1] - nl[1]) < 10:
-                            dx = pl[0] - pl[2]
-                            dy = pl[1] - pl[3]
-                            len_sq = dx * dx + dy * dy
+                # Precompute swapped coordinates for both lines_x_p and lines_x_n
+                swapped_lines_x_p = [swap_coordinates(line[0]) for line in lines_x_p]
+                swapped_lines_x_n = [swap_coordinates(line[0]) for line in lines_x_n]
+                for pl in swapped_lines_x_p:
+                    for nl in swapped_lines_x_n:
+                        dx = pl[0] - nl[0]
+                        dy = pl[1] - nl[1]
+                        if 2 < dx < struct_width_px and abs(dy) < 10:
+                            len_sq = (pl[0] - pl[2]) ** 2 + (pl[1] - pl[3]) ** 2
                             if len_sq > max_len_sq:
                                 max_len_sq = len_sq
                                 vert_lines = (pl, nl)
-                            #cv2.fillConvexPoly(verti_mask, np.array([[pl[0],pl[1]], [pl[2],pl[3]], [nl[2],nl[3]], [nl[0],nl[1]]]), 65535)
-                            #vert_structs.append((pl[0]-2, pl[1], pl[2]-2, pl[3]))
                             break
             #print("vert struct", vert_struct)
             #verti_mask = np.bitwise_and(depth_u16, verti_mask)
