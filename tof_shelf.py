@@ -198,6 +198,7 @@ while rclpy.ok():
             line_list.ns = "hori_struct"
             line_list.color.r = 0.0
             line_list.color.b = 1.0
+            line_list.points.clear()
             if hori_line is None:
                 hori_struct = (0,) * 6
             else:
