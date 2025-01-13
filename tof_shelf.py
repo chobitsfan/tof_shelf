@@ -110,7 +110,6 @@ while rclpy.ok():
             # only select vertical lines which postive & negative edges close enough
             vert_lines = None
             if lines_x_p is not None and lines_x_n is not None:
-                max_len_sq = 0
                 # Precompute swapped coordinates for both lines_x_p and lines_x_n
                 swapped_lines_x_p = [swap_coordinates(line[0]) for line in lines_x_p]
                 swapped_lines_x_n = [swap_coordinates(line[0]) for line in lines_x_n]
@@ -118,12 +117,11 @@ while rclpy.ok():
                     for nl in swapped_lines_x_n:
                         dx = pl[0] - nl[0]
                         dy = pl[1] - nl[1]
-                        if 2 < dx < struct_width_px and abs(dy) < 10:
-                            len_sq = (pl[0] - pl[2]) ** 2 + (pl[1] - pl[3]) ** 2
-                            if len_sq > max_len_sq:
-                                max_len_sq = len_sq
-                                vert_lines = (pl, nl)
+                        if 2 < dx < struct_width_max_px and abs(dy) < 20:
+                            vert_lines = (pl, nl)
                             break
+                    if vert_lines is not None:
+                        break
             #print("vert struct", vert_struct)
             #verti_mask = np.bitwise_and(depth_u16, verti_mask)
             #img.data = verti_mask.ravel().view(np.uint8)
