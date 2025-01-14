@@ -22,7 +22,7 @@ fy = 180 / (2 * math.tan(0.5 * math.pi * 50.4 / 180));
 # thanks to ludovic
 struct_width_m = 0.1
 struct_dist_m = 0.5
-struct_width_max_px = struct_width_m * fy / struct_dist_m
+struct_width_max_px = struct_width_m * fy / struct_dist_m + 5 # margin = 5px
 
 rclpy.init()
 node = rclpy.create_node('tof')
@@ -158,6 +158,14 @@ while rclpy.ok():
             line_list.color.a = 1.0
             if vert_lines is None:
                 vert_struct = (0,) * 6
+
+                if lines_x_p is not None and lines_x_n is not None:
+                    for l in lines_x_p:
+                        pl = l[0]
+                        cv2.line(edge_img, (pl[0], pl[1]), (pl[2], pl[3]), (128,128,255), 1, cv2.LINE_8)
+                    for l in lines_x_n:
+                        nl = l[0]
+                        cv2.line(edge_img, (pl[0], pl[1]), (pl[2], pl[3]), (64,128,0), 1, cv2.LINE_8)
             else:
                 pl, nl = vert_lines
 
@@ -194,7 +202,7 @@ while rclpy.ok():
                 p.y = y + vy
                 p.z = z + vz
                 line_list.points.append(p)
-            lines_pub.publish(line_list)
+                lines_pub.publish(line_list)
 
             line_list.ns = "hori_struct"
             line_list.color.r = 0.0
@@ -237,7 +245,7 @@ while rclpy.ok():
                 p.y = y + vy
                 p.z = z + vz
                 line_list.points.append(p)
-            lines_pub.publish(line_list)
+                lines_pub.publish(line_list)
 
             try:
                 sock.sendto(struct.pack('ffffffffffff', *vert_struct, *hori_struct), dest_socket_file)
