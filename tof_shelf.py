@@ -182,7 +182,7 @@ while rclpy.ok():
                 vy = l[1].item(0)
                 vz = l[2].item(0)
                 vert_struct = (x, y, z, vx, vy, vz)
-                struct_dist_m = x + 0.1 # margin 0.1m
+                struct_dist_m = x
 
                 p = Point()
                 p.x = x - vx
@@ -225,6 +225,7 @@ while rclpy.ok():
                 vy = l[1].item(0)
                 vz = l[2].item(0)
                 hori_struct = (x, y, z, vx, vy ,vz)
+                struct_dist_m = x
 
                 p = Point()
                 p.x = x - vx
