@@ -25,8 +25,11 @@ def swap_coordinates_filter_tilt(line):
         line[1], line[3] = line[3], line[1]
     vx = line[2] - line[0]
     vy = line[3] - line[1]
-    cos_theta = vy / math.sqrt(vx * vx + vy * vy)
-    if cos_theta > cos_max_tilt:
+    theta = math.acos(vy / math.sqrt(vx * vx + vy * vy))
+    if vx < 0:
+        theta =- theta
+    #print('vert line', theta)
+    if -tilt_tolerance < theta - drone_roll < tilt_tolerance:
         return line
     else:
         return None
