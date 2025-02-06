@@ -23,6 +23,7 @@ fy = 180 / (2 * math.tan(0.5 * math.pi * 50.4 / 180));
 struct_width_m = 0.1
 struct_dist_m = 0.5
 struct_width_max_px = struct_width_m * fy / struct_dist_m + 5 # margin = 5px
+cos_max_tilt = math.cos(10 * math.pi / 180)
 
 rclpy.init()
 node = rclpy.create_node('tof')
@@ -135,14 +136,18 @@ while rclpy.ok():
             # find the horizontal line with max length
             hori_line = None
             if lines_y is not None:
-                max_len_sq = 0
+                max_len = 0
                 for line in lines_y:
                     x1, y1, x2, y2 = line[0]
-                    dx = x1 - x2
-                    dy = y1 - y2
-                    len_sq = dx * dx + dy * dy
-                    if len_sq > max_len_sq:
-                        max_len_sq = len_sq
+                    # unify direction
+                    if x1 > x2:
+                        x1, y1, x2, y2 = x2, y2, x1, y1
+                    vx = x2 - x1
+                    vy = y2 - y1
+                    len = math.sqrt(vx * vx + vy * vy)
+                    cos_theta = vx / len
+                    if len > max_len and cos_theta > cos_max_tilt:
+                        max_len = len
                         hori_line = (x1, y1, x2, y2)
 #                    cv2.line(edge_img, (x1, y1), (x2, y2), (255,0,0), 1, cv2.LINE_8)
 
