@@ -11,9 +11,13 @@ from std_msgs.msg import Float32
 import ArducamDepthCamera as ac
 
 cos_max_tilt = math.cos(10 * math.pi / 180)
+tilt_tolerance = 10 * math.pi / 180
+drone_roll = 0
 
 def roll_callback(msg):
-    print('roll %f rad' % msg.data)
+    #print('roll %f' % msg.data)
+    global drone_roll
+    drone_roll = msg.data
 
 def swap_coordinates_filter_tilt(line):
     if line[1] > line[3]:
@@ -158,8 +162,11 @@ while rclpy.ok():
                     vx = x2 - x1
                     vy = y2 - y1
                     len = math.sqrt(vx * vx + vy * vy)
-                    cos_theta = vx / len
-                    if len > max_len and cos_theta > cos_max_tilt:
+                    theta = math.acos(vx / len)
+                    if y2 > y1:
+                        theta = -theta
+                    #print('line', theta, 'roll correct', theta - drone_roll)
+                    if len > max_len and -tilt_tolerance < theta - drone_roll < tilt_tolerance:
                         max_len = len
                         hori_line = (x1, y1, x2, y2)
 #                    cv2.line(edge_img, (x1, y1), (x2, y2), (255,0,0), 1, cv2.LINE_8)
