@@ -7,9 +7,13 @@ from geometry_msgs.msg import Point
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Header
+from std_msgs.msg import Float32
 import ArducamDepthCamera as ac
 
 cos_max_tilt = math.cos(10 * math.pi / 180)
+
+def roll_callback(msg):
+    print('roll %f rad' % msg.data)
 
 def swap_coordinates_filter_tilt(line):
     if line[1] > line[3]:
@@ -38,6 +42,7 @@ img_pub = node.create_publisher(Image, "depth_image", 1)
 img_pub2 = node.create_publisher(Image, "edge_image", 1)
 lines_pub = node.create_publisher(Marker, "struct_lines", 1)
 pp_pub = node.create_publisher(PointCloud2, "point_cloud", 1)
+roll_sub = node.create_subscription(Float32, "roll", roll_callback, 1)
 
 print("arducam sdk ver", ac.__version__)
 
@@ -70,6 +75,7 @@ kernel = np.ones((5,5),np.uint8)
 print("start");
 
 while rclpy.ok():
+    rclpy.spin_once(node, timeout_sec=0)
     frame = tof.requestFrame(200)
     if frame is not None and isinstance(frame, ac.DepthData):
         skip_c += 1
