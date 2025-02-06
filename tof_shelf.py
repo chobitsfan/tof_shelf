@@ -9,11 +9,19 @@ from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Header
 import ArducamDepthCamera as ac
 
-def swap_coordinates(line):
+cos_max_tilt = math.cos(10 * math.pi / 180)
+
+def swap_coordinates_filter_tilt(line):
     if line[1] > line[3]:
         line[0], line[2] = line[2], line[0]
         line[1], line[3] = line[3], line[1]
-    return line
+    vx = line[2] - line[0]
+    vy = line[3] - line[1]
+    cos_theta = vy / math.sqrt(vx * vx + vy * vy)
+    if cos_theta > cos_max_tilt:
+        return line
+    else:
+        return None
 
 GRAD_THRESH = 300
 fx = 240 / (2 * math.tan(0.5 * math.pi * 64.3 / 180));
@@ -23,7 +31,6 @@ fy = 180 / (2 * math.tan(0.5 * math.pi * 50.4 / 180));
 struct_width_m = 0.1
 struct_dist_m = 0.5
 struct_width_max_px = struct_width_m * fy / struct_dist_m + 5 # margin = 5px
-cos_max_tilt = math.cos(10 * math.pi / 180)
 
 rclpy.init()
 node = rclpy.create_node('tof')
@@ -112,17 +119,8 @@ while rclpy.ok():
             vert_lines = None
             if lines_x_p is not None and lines_x_n is not None:
                 # Precompute swapped coordinates for both lines_x_p and lines_x_n
-                swapped_lines_x_p = [swap_coordinates(line[0]) for line in lines_x_p]
-                # Filter lines based on the cosine of the angle
-                ok_lines_x_p = [
-                    line for line in swapped_lines_x_p
-                    if (lambda vx, vy: (vy / math.sqrt(vx * vx + vy * vy)) > cos_max_tilt)(line[2] - line[0], line[3] - line[1])
-                ]
-                swapped_lines_x_n = [swap_coordinates(line[0]) for line in lines_x_n]
-                ok_lines_x_n = [
-                    line for line in swapped_lines_x_n
-                    if (lambda vx, vy: (vy / math.sqrt(vx * vx + vy * vy)) > cos_max_tilt)(line[2] - line[0], line[3] - line[1])
-                ]
+                ok_lines_x_p = [ok_line for line in lines_x_p if (ok_line := swap_coordinates_filter_tilt(line[0])) is not None]
+                ok_lines_x_n = [ok_line for line in lines_x_n if (ok_line := swap_coordinates_filter_tilt(line[0])) is not None]
                 for pl in ok_lines_x_p:
                     for nl in ok_lines_x_n:
                         dx = pl[0] - nl[0]
