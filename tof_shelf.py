@@ -113,9 +113,18 @@ while rclpy.ok():
             if lines_x_p is not None and lines_x_n is not None:
                 # Precompute swapped coordinates for both lines_x_p and lines_x_n
                 swapped_lines_x_p = [swap_coordinates(line[0]) for line in lines_x_p]
+                # Filter lines based on the cosine of the angle
+                ok_lines_x_p = [
+                    line for line in swapped_lines_x_p
+                    if line and (lambda vx, vy: (vy / math.sqrt(vx * vx + vy * vy)) > 0.1)(line[2] - line[0], line[3] - line[1])
+                ]
                 swapped_lines_x_n = [swap_coordinates(line[0]) for line in lines_x_n]
-                for pl in swapped_lines_x_p:
-                    for nl in swapped_lines_x_n:
+                ok_lines_x_n = [
+                    line for line in swapped_lines_x_n
+                    if line and (lambda vx, vy: (vy / math.sqrt(vx * vx + vy * vy)) > 0.1)(line[2] - line[0], line[3] - line[1])
+                ]
+                for pl in ok_lines_x_p:
+                    for nl in ok_lines_x_n:
                         dx = pl[0] - nl[0]
                         dy = pl[1] - nl[1]
                         if 2 < dx < struct_width_max_px and abs(dy) < 20:
