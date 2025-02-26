@@ -78,7 +78,7 @@ sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
 sock.bind(socket_file)
 
 skip_c = 0;
-kernel = np.ones((5,5),np.uint8)
+#kernel = np.ones((5,5),np.uint8)
 print("start");
 
 while rclpy.ok():
@@ -94,8 +94,6 @@ while rclpy.ok():
             depth_buf[(confidence_buf < 60) | (depth_buf > 2000) | (depth_buf <= 0)] = 2000
             depth_u16 = depth_buf.astype(np.uint16)
             tof.releaseFrame(frame)
-            depth_u16 = cv2.medianBlur(depth_u16, 3)
-            #depth_u16 = cv2.dilate(depth_u16, kernel)
 
             header = Header()
             header.frame_id = "body"
@@ -109,6 +107,12 @@ while rclpy.ok():
             img.step = 240*2
             img.data = depth_u16.ravel().view(np.uint8)
             img_pub.publish(img)
+
+            depth_u16 = cv2.medianBlur(depth_u16, 3)
+            #depth_u16 = cv2.dilate(depth_u16, kernel)
+
+            #hist,binedge=np.histogram(depth_u16, bins=5)
+            #print(f'depth image hist and bins:\n{hist}\n{binedge}')
 
             edge_img = np.zeros((180, 240, 3), dtype=np.uint8)
 
@@ -190,10 +194,10 @@ while rclpy.ok():
                 if lines_x_p is not None and lines_x_n is not None:
                     for l in lines_x_p:
                         pl = l[0]
-                        cv2.line(edge_img, (pl[0], pl[1]), (pl[2], pl[3]), (128,128,255), 1, cv2.LINE_8)
+                        cv2.line(edge_img, (pl[0], pl[1]), (pl[2], pl[3]), (255,255,255), 1, cv2.LINE_8)
                     for l in lines_x_n:
                         nl = l[0]
-                        cv2.line(edge_img, (pl[0], pl[1]), (pl[2], pl[3]), (64,128,0), 1, cv2.LINE_8)
+                        cv2.line(edge_img, (pl[0], pl[1]), (pl[2], pl[3]), (255,255,255), 1, cv2.LINE_8)
             else:
                 pl, nl = vert_lines
 
@@ -238,6 +242,11 @@ while rclpy.ok():
             line_list.points.clear()
             if hori_line is None:
                 hori_struct = (0,) * 6
+
+                if lines_y is not None:
+                    for line in lines_y:
+                        x1, y1, x2, y2 = line[0]
+                        cv2.line(edge_img, (x1, y1), (x2, y2), (255,255,255), 1, cv2.LINE_8)
             else:
                 x1, y1, x2, y2 = hori_line
 
