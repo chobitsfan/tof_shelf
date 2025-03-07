@@ -116,42 +116,6 @@ while rclpy.ok():
 
             edge_img = np.zeros((180, 240, 3), dtype=np.uint8)
 
-            # detect vertical structures
-            grad = cv2.Sobel(depth_u16, cv2.CV_16S, 1, 0, -1)
-            ret, grad_thresh = cv2.threshold(grad, GRAD_THRESH, 255, cv2.THRESH_BINARY)
-            grad_u8 = grad_thresh.astype(np.uint8)
-            lines_x_p = cv2.HoughLinesP(grad_u8, 1, np.pi/180, 50, None, 50, 5)
-#            if lines_x_p is not None:
-#                for line in lines_x_p:
-#                    l = line[0]
-#                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (128,255,255), 1, cv2.LINE_8)
-            ret, grad_thresh = cv2.threshold(grad, -GRAD_THRESH, 255, cv2.THRESH_BINARY_INV);
-            grad_u8 = grad_thresh.astype(np.uint8)
-            lines_x_n = cv2.HoughLinesP(grad_u8, 1, np.pi/180, 50, None, 50, 5)
-#            if lines_x_n is not None:
-#                for line in lines_x_n:
-#                    l = line[0]
-#                    cv2.line(edge_img, (l[0], l[1]), (l[2], l[3]), (128,255,255), 1, cv2.LINE_8)
-            # only select vertical lines which postive & negative edges close enough
-            vert_lines = None
-            if lines_x_p is not None and lines_x_n is not None:
-                # Precompute swapped coordinates for both lines_x_p and lines_x_n
-                ok_lines_x_p = [ok_line for line in lines_x_p if (ok_line := swap_coordinates_filter_tilt(line[0])) is not None]
-                ok_lines_x_n = [ok_line for line in lines_x_n if (ok_line := swap_coordinates_filter_tilt(line[0])) is not None]
-                for pl in ok_lines_x_p:
-                    for nl in ok_lines_x_n:
-                        dx = pl[0] - nl[0]
-                        dy = pl[1] - nl[1]
-                        if 2 < dx < struct_width_max_px and abs(dy) < 20:
-                            vert_lines = (pl, nl)
-                            break
-                    if vert_lines is not None:
-                        break
-            #print("vert struct", vert_struct)
-            #verti_mask = np.bitwise_and(depth_u16, verti_mask)
-            #img.data = verti_mask.ravel().view(np.uint8)
-            #img_pub.publish(img)
-
             # detect horizontal structures
             grad = cv2.Sobel(depth_u16, cv2.CV_16S, 0, 1, -1)
             ret, grad_thresh = cv2.threshold(grad, GRAD_THRESH, 255, cv2.THRESH_BINARY)
@@ -184,61 +148,12 @@ while rclpy.ok():
             line_list.type = Marker.LINE_LIST
             line_list.id = 1
             line_list.pose.orientation.w = 1.0 # 1.0, NOT 1
-            line_list.ns = "vert_struct"
             line_list.scale.x = 0.02
-            line_list.color.r = 1.0
-            line_list.color.a = 1.0
-            if vert_lines is None:
-                vert_struct = (0,) * 6
-
-                if lines_x_p is not None and lines_x_n is not None:
-                    for l in lines_x_p:
-                        pl = l[0]
-                        cv2.line(edge_img, (pl[0], pl[1]), (pl[2], pl[3]), (255,255,255), 1, cv2.LINE_8)
-                    for l in lines_x_n:
-                        nl = l[0]
-                        cv2.line(edge_img, (pl[0], pl[1]), (pl[2], pl[3]), (255,255,255), 1, cv2.LINE_8)
-            else:
-                pl, nl = vert_lines
-
-                cv2.line(edge_img, (pl[0], pl[1]), (pl[2], pl[3]), (0,0,255), 1, cv2.LINE_8)
-                cv2.line(edge_img, (nl[0], nl[1]), (nl[2], nl[3]), (0,255,0), 1, cv2.LINE_8)
-
-                pp = np.linspace(np.array([pl[1], (pl[0]+nl[0])/2]), np.array([pl[3], (pl[2]+nl[2])/2]), num=50).astype(np.int32) # opencv y, x for numpy row, col
-
-                ds = depth_u16[tuple(pp.T)]
-                hist, bin_edges = np.histogram(ds, bins=4)
-                max_i = np.argmax(hist)
-
-                pp_3d = [(d * 0.001, (120 - p[1]) / fx * (d * 0.001), (90 - p[0]) / fy * (d * 0.001)) for p in pp if bin_edges[max_i] <= (d := depth_u16[p[0], p[1]]) <= bin_edges[max_i + 1]]
-
-                pp_pub.publish(point_cloud2.create_cloud_xyz32(header, pp_3d))
-
-                l = cv2.fitLine(np.array(pp_3d), cv2.DIST_L2, 0, 0.01, 0.01)
-                x = l[3].item(0)
-                y = l[4].item(0)
-                z = l[5].item(0)
-                vx = l[0].item(0)
-                vy = l[1].item(0)
-                vz = l[2].item(0)
-                vert_struct = (x, y, z, vx, vy, vz)
-                struct_dist_m = x
-
-                p = Point()
-                p.x = x - vx
-                p.y = y - vy
-                p.z = z - vz
-                line_list.points.append(p)
-                p = Point()
-                p.x = x + vx
-                p.y = y + vy
-                p.z = z + vz
-                line_list.points.append(p)
-                lines_pub.publish(line_list)
-
             line_list.ns = "hori_struct"
             line_list.color.r = 0.0
+            line_list.color.g = 0.0
             line_list.color.b = 1.0
+            line_list.color.a = 1.0
             line_list.points.clear()
             if hori_line is None:
                 hori_struct = (0,) * 6
@@ -285,7 +200,7 @@ while rclpy.ok():
                 lines_pub.publish(line_list)
 
             try:
-                sock.sendto(struct.pack('ffffffffffff', *vert_struct, *hori_struct), dest_socket_file)
+                sock.sendto(struct.pack('ffffff', *hori_struct), dest_socket_file)
             except FileNotFoundError:
                 pass
 
