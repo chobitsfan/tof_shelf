@@ -85,7 +85,10 @@ print("start");
 
 while rclpy.ok():
     rclpy.spin_once(node, timeout_sec=0)
-    frame = tof.requestFrame(200)
+    try:
+        frame = tof.requestFrame(200)
+    except KeyboardInterrupt:
+        break
     if frame is not None and isinstance(frame, ac.DepthData):
         skip_c += 1
         if skip_c > 5:
@@ -234,4 +237,6 @@ tof.close()
 sock.close()
 os.remove(socket_file)
 
-rclpy.shutdown()
+rclpy.try_shutdown()
+
+print("bye")
