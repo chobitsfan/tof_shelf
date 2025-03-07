@@ -3,11 +3,12 @@ import numpy as np
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, PoseStamped
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Header
 from std_msgs.msg import Float32
+from nav_msgs.msg import Path
 import ArducamDepthCamera as ac
 
 cos_max_tilt = math.cos(10 * math.pi / 180)
@@ -50,6 +51,7 @@ img_pub2 = node.create_publisher(Image, "edge_image", 1)
 lines_pub = node.create_publisher(Marker, "struct_lines", 1)
 pp_pub = node.create_publisher(PointCloud2, "point_cloud", 1)
 roll_sub = node.create_subscription(Float32, "roll", roll_callback, 1)
+hori_pub = node.create_publisher(Path, "hori_line", 1)
 
 print("arducam sdk ver", ac.__version__)
 
@@ -164,6 +166,20 @@ while rclpy.ok():
                         cv2.line(edge_img, (x1, y1), (x2, y2), (255,255,255), 1, cv2.LINE_8)
             else:
                 x1, y1, x2, y2 = hori_line
+
+                path_msg = Path()
+                path_msg.header = header
+                p1 = PoseStamped()
+                p1.header = header
+                p1.pose.position.x = float(x1)
+                p1.pose.position.y = float(y1)
+                path_msg.poses.append(p1)
+                p2 = PoseStamped()
+                p2.header = header
+                p2.pose.position.x = float(x2)
+                p2.pose.position.y = float(y2)
+                path_msg.poses.append(p2)
+                hori_pub.publish(path_msg)
 
                 cv2.line(edge_img, (x1, y1), (x2, y2), (255,0,0), 1, cv2.LINE_8)
 
