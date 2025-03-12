@@ -47,7 +47,7 @@ struct_width_max_px = struct_width_m * fy / struct_dist_m + 5 # margin = 5px
 rclpy.init()
 node = rclpy.create_node('tof')
 img_pub = node.create_publisher(Image, "depth_image", 1)
-img_pub2 = node.create_publisher(Image, "edge_image", 1)
+#img_pub2 = node.create_publisher(Image, "edge_image", 1)
 lines_pub = node.create_publisher(Marker, "struct_lines", 1)
 pp_pub = node.create_publisher(PointCloud2, "point_cloud", 1)
 roll_sub = node.create_subscription(Float32, "roll", roll_callback, 1)
@@ -119,7 +119,7 @@ while rclpy.ok():
             #hist,binedge=np.histogram(depth_u16, bins=5)
             #print(f'depth image hist and bins:\n{hist}\n{binedge}')
 
-            edge_img = np.zeros((180, 240, 3), dtype=np.uint8)
+            #edge_img = np.zeros((180, 240, 3), dtype=np.uint8)
 
             # detect horizontal structures
             grad = cv2.Sobel(depth_u16, cv2.CV_16S, 0, 1, -1)
@@ -163,10 +163,10 @@ while rclpy.ok():
             if hori_line is None:
                 hori_struct = (0,) * 6
 
-                if lines_y is not None:
-                    for line in lines_y:
-                        x1, y1, x2, y2 = line[0]
-                        cv2.line(edge_img, (x1, y1), (x2, y2), (255,255,255), 1, cv2.LINE_8)
+#                if lines_y is not None:
+#                    for line in lines_y:
+#                        x1, y1, x2, y2 = line[0]
+#                        cv2.line(edge_img, (x1, y1), (x2, y2), (255,255,255), 1, cv2.LINE_8)
             else:
                 x1, y1, x2, y2 = hori_line
 
@@ -184,7 +184,7 @@ while rclpy.ok():
                 path_msg.poses.append(p2)
                 hori_pub.publish(path_msg)
 
-                cv2.line(edge_img, (x1, y1), (x2, y2), (255,0,0), 1, cv2.LINE_8)
+#                cv2.line(edge_img, (x1, y1), (x2, y2), (255,0,0), 1, cv2.LINE_8)
 
                 pp = np.linspace(np.array([y1-3, x1]), np.array([y2-3, x2]), num=50).astype(np.int32) # opencv y, x for numpy row, col
 
@@ -223,11 +223,11 @@ while rclpy.ok():
             except FileNotFoundError:
                 pass
 
-            img.header = header
-            img.encoding = "bgr8"
-            img.step = 240*3
-            img.data = edge_img.ravel().view(np.uint8)
-            img_pub2.publish(img)
+#            img.header = header
+#            img.encoding = "bgr8"
+#            img.step = 240*3
+#            img.data = edge_img.ravel().view(np.uint8)
+#            img_pub2.publish(img)
         else:
             tof.releaseFrame(frame)
 
