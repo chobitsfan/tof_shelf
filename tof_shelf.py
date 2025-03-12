@@ -147,19 +147,6 @@ while rclpy.ok():
                         hori_line = (x1, y1, x2, y2)
 #                    cv2.line(edge_img, (x1, y1), (x2, y2), (255,0,0), 1, cv2.LINE_8)
 
-            line_list = Marker()
-            line_list.header = header
-            line_list.action = Marker.ADD
-            line_list.type = Marker.LINE_LIST
-            line_list.id = 1
-            line_list.pose.orientation.w = 1.0 # 1.0, NOT 1
-            line_list.scale.x = 0.02
-            line_list.ns = "hori_struct"
-            line_list.color.r = 0.0
-            line_list.color.g = 0.0
-            line_list.color.b = 1.0
-            line_list.color.a = 1.0
-            line_list.points.clear()
             if hori_line is None:
                 hori_struct = (0,) * 6
 
@@ -206,6 +193,17 @@ while rclpy.ok():
                 hori_struct = (x, y, z, vx, vy ,vz)
                 struct_dist_m = x
 
+                line_list = Marker()
+                line_list.header = header
+                line_list.action = Marker.ADD
+                line_list.type = Marker.LINE_LIST
+                line_list.id = 1
+                line_list.pose.orientation.w = 1.0 # 1.0, NOT 1
+                line_list.scale.x = 0.05
+                line_list.ns = "hori_struct"
+                line_list.color.g = 1.0
+                line_list.color.a = 1.0
+                line_list.lifetime.sec = 1
                 p = Point()
                 p.x = x - vx
                 p.y = y - vy
